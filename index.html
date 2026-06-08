@@ -21,6 +21,7 @@
         <button class="nav-pill" onclick="showView('kids')">🧒 Filhos</button>
         <button class="nav-pill" onclick="showView('shop')">🛒 Lojinha</button>
       </nav>
+      <div id="user-area" style="margin-left: 18px"></div>
     </header>
 
     <main>
@@ -358,7 +359,11 @@
 
     <footer class="site-footer">
       <div class="footer-brand">
-        <img src="img/pear_technology_logo-removebg-preview.png" alt="Logo da empresa" class="footer-logo" />
+        <img
+          src="img/pear_technology_logo-removebg-preview.png"
+          alt="Logo da empresa"
+          class="footer-logo"
+        />
         <div class="footer-text">
           <span>Mesada Gamer</span>
           <small>Seu parceiro de educação financeira gamificada</small>
@@ -368,6 +373,41 @@
         © 2026 Mesada Gamer. Todos os direitos reservados.
       </div>
     </footer>
+
+    <!-- MODAL: Login / Registro dos Pais -->
+    <div class="modal-overlay" id="modal-login">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-login')">
+          ✕
+        </button>
+        <div class="modal-title">🔐 Acesso dos Pais</div>
+        <div style="margin-bottom: 12px">
+          <div class="form-group">
+            <label>Usuário</label>
+            <input
+              type="text"
+              id="login-username"
+              placeholder="Seu usuário (ex: seu_nome)"
+            />
+          </div>
+          <div class="form-group">
+            <label>Senha</label>
+            <input type="password" id="login-password" placeholder="Senha" />
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: flex-end">
+            <button class="btn btn-ghost" onclick="registerUserFromModal()">
+              Criar conta
+            </button>
+            <button class="btn btn-primary" onclick="loginUser()">
+              Entrar
+            </button>
+          </div>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--muted)">
+          Senha padrão: <strong>admin</strong> (pode ser alterada depois)
+        </div>
+      </div>
+    </div>
 
     <!-- MODAL: Task Completion (kid side) -->
     <div class="modal-overlay" id="modal-complete">
