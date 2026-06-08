@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Banco da Mesada Gamer 🎮</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="logo">
+        🎮 <span>BANCO</span>&nbsp;DA MESADA&nbsp;<span>GAMER</span>
+      </div>
+      <nav class="nav-pills">
+        <button class="nav-pill" onclick="showView('home')">🏠 Início</button>
+        <button class="nav-pill" onclick="showView('admin')">👑 Pais</button>
+        <button class="nav-pill" onclick="showView('kids')">🧒 Filhos</button>
+        <button class="nav-pill" onclick="showView('shop')">🛒 Lojinha</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- HOME / WELCOME -->
+      <div id="view-home" class="view active">
+        <div class="welcome-hero">
+          <h1>
+            Transforme tarefas em<br /><span class="gold"
+              >recompensas épicas</span
+            >
+            🏆
+          </h1>
+          <p>
+            O banco virtual que transforma deveres de casa em missões
+            gamificadas — e mesada real!
+          </p>
+          <div class="welcome-cards">
+            <div class="welcome-card" onclick="showView('admin')">
+              <div class="wc-icon">👑</div>
+              <div class="wc-title">PAINEL DOS PAIS</div>
+              <div class="wc-desc">
+                Cadastre filhos, crie missões e aprove tarefas concluídas
+              </div>
+            </div>
+            <div class="welcome-card gold-card" onclick="showView('kids')">
+              <div class="wc-icon">🧒</div>
+              <div class="wc-title">PAINEL DOS FILHOS</div>
+              <div class="wc-desc">
+                Veja suas missões, marque como concluída e acumule saldo
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid3" style="margin-top: 14px">
+          <div class="stat-box">
+            <div class="stat-label">Total de Missões</div>
+            <div class="stat-value accent" id="home-total-tasks">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Saldo Total Ganho</div>
+            <div class="stat-value" id="home-total-earned">R$ 0,00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Filhos Cadastrados</div>
+            <div class="stat-value green" id="home-total-kids">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN VIEW -->
+      <div id="view-admin" class="view">
+        <div class="grid2">
+          <!-- Add Child -->
+          <div class="card">
+            <div class="card-title">➕ Cadastrar Filho</div>
+            <div class="form-group">
+              <label>Nome do Filho</label>
+              <input
+                type="text"
+                id="child-name"
+                placeholder="Ex: João, Maria..."
+              />
+            </div>
+            <div class="form-group">
+              <label>Avatar (emoji)</label>
+              <input
+                type="text"
+                id="child-avatar"
+                placeholder="🦊"
+                maxlength="2"
+              />
+            </div>
+            <button class="btn btn-primary" onclick="addChild()">
+              CADASTRAR FILHO
+            </button>
+            <div id="children-list" style="margin-top: 16px"></div>
+          </div>
+
+          <!-- Add Task -->
+          <div class="card">
+            <div class="card-title">⚔️ Criar Missão</div>
+            <div class="form-group">
+              <label>Nome da Missão</label>
+              <input
+                type="text"
+                id="task-name"
+                placeholder="Ex: Lavar a louça"
+              />
+            </div>
+            <div class="form-group">
+              <label>Atribuir ao Filho</label>
+              <select id="task-child"></select>
+            </div>
+            <div class="form-group">
+              <label>Valor (R$)</label>
+              <input
+                type="number"
+                id="task-value"
+                placeholder="2.00"
+                step="0.50"
+                min="0"
+              />
+            </div>
+            <div class="form-group">
+              <label>Período</label>
+              <select id="task-period">
+                <option value="Hoje">Hoje</option>
+                <option value="Esta semana">Esta semana</option>
+                <option value="Recorrente">Recorrente (todo dia)</option>
+              </select>
+            </div>
+            <button class="btn btn-gold" onclick="addTask()">
+              CRIAR MISSÃO
+            </button>
+          </div>
+        </div>
+
+        <!-- Pending Approvals -->
+        <div class="card">
+          <div class="card-title">✅ Aprovações Pendentes</div>
+          <div id="pending-approvals">
+            <div
+              style="
+                color: var(--muted);
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 20px;
+              "
+            >
+              Nenhuma tarefa aguardando aprovação.
+            </div>
+          </div>
+        </div>
+
+        <!-- Bonus -->
+        <div class="card">
+          <div class="card-title">⭐ Bônus de Comportamento</div>
+          <div
+            style="
+              display: flex;
+              gap: 12px;
+              align-items: flex-end;
+              flex-wrap: wrap;
+            "
+          >
+            <div
+              class="form-group"
+              style="flex: 1; min-width: 140px; margin-bottom: 0"
+            >
+              <label>Filho</label>
+              <select id="bonus-child"></select>
+            </div>
+            <div
+              class="form-group"
+              style="flex: 1; min-width: 120px; margin-bottom: 0"
+            >
+              <label>Valor Bônus (R$)</label>
+              <input
+                type="number"
+                id="bonus-value"
+                placeholder="5.00"
+                min="0"
+                step="0.5"
+              />
+            </div>
+            <div
+              class="form-group"
+              style="flex: 2; min-width: 160px; margin-bottom: 0"
+            >
+              <label>Motivo</label>
+              <input
+                type="text"
+                id="bonus-reason"
+                placeholder="Ex: Semana perfeita!"
+              />
+            </div>
+            <button
+              class="btn btn-green"
+              onclick="addBonus()"
+              style="height: 42px"
+            >
+              DAR BÔNUS
+            </button>
+          </div>
+        </div>
+
+        <!-- All tasks overview -->
+        <div class="card">
+          <div class="card-title">📋 Todas as Missões</div>
+          <div id="all-tasks-list">
+            <div
+              style="
+                color: var(--muted);
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 20px;
+              "
+            >
+              Nenhuma missão criada ainda.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KIDS VIEW -->
+      <div id="view-kids" class="view">
+        <div
+          id="no-kids-msg"
+          style="text-align: center; padding: 60px 20px; color: var(--muted)"
+        >
+          <div style="font-size: 3rem; margin-bottom: 12px">👪</div>
+          <div
+            style="
+              font-family: &quot;Orbitron&quot;, monospace;
+              font-size: 0.85rem;
+            "
+          >
+            Nenhum filho cadastrado ainda.<br />Peça aos pais para cadastrar na
+            aba <strong style="color: var(--accent)">PAIS</strong>.
+          </div>
+        </div>
+        <div id="kids-panel" style="display: none">
+          <div class="kid-selector" id="kid-selector"></div>
+          <div id="kid-content"></div>
+        </div>
+      </div>
+
+      <!-- SHOP VIEW -->
+      <div id="view-shop" class="view">
+        <div class="card" style="margin-bottom: 24px">
+          <div class="card-title">🏪 LOJINHA DE RECOMPENSAS</div>
+          <p
+            style="color: var(--muted); font-size: 0.9rem; margin-bottom: 16px"
+          >
+            Troque seu saldo por recompensas incríveis! Selecione seu perfil e
+            clique em resgatar.
+          </p>
+          <div
+            style="
+              display: flex;
+              gap: 10px;
+              align-items: center;
+              flex-wrap: wrap;
+            "
+          >
+            <label style="font-size: 0.8rem; color: var(--muted)"
+              >Quem está comprando:</label
+            >
+            <select
+              id="shop-child-select"
+              style="
+                background: var(--bg2);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 8px 12px;
+                color: var(--text);
+                font-family: &quot;Rajdhani&quot;, sans-serif;
+                font-size: 0.95rem;
+              "
+            >
+              <option value="">— Selecione —</option>
+            </select>
+            <span
+              id="shop-balance-display"
+              style="
+                font-family: &quot;Orbitron&quot;, monospace;
+                color: var(--gold);
+                font-size: 1rem;
+                font-weight: 900;
+              "
+            ></span>
+          </div>
+        </div>
+
+        <div class="grid3" id="shop-grid"></div>
+
+        <div class="card" style="margin-top: 24px">
+          <div class="card-title">💎 Adicionar Recompensa Personalizada</div>
+          <div
+            style="
+              display: flex;
+              gap: 12px;
+              flex-wrap: wrap;
+              align-items: flex-end;
+            "
+          >
+            <div
+              class="form-group"
+              style="flex: 1; min-width: 120px; margin-bottom: 0"
+            >
+              <label>Emoji</label>
+              <input
+                type="text"
+                id="reward-emoji"
+                placeholder="🎮"
+                maxlength="2"
+              />
+            </div>
+            <div
+              class="form-group"
+              style="flex: 2; min-width: 160px; margin-bottom: 0"
+            >
+              <label>Nome da Recompensa</label>
+              <input
+                type="text"
+                id="reward-name"
+                placeholder="Ex: 1h extra de videogame"
+              />
+            </div>
+            <div
+              class="form-group"
+              style="flex: 1; min-width: 100px; margin-bottom: 0"
+            >
+              <label>Custo (R$)</label>
+              <input
+                type="number"
+                id="reward-cost"
+                placeholder="10.00"
+                step="0.5"
+                min="0"
+              />
+            </div>
+            <button
+              class="btn btn-primary"
+              onclick="addReward()"
+              style="height: 42px"
+            >
+              ADICIONAR
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-brand">
+        <img src="img/pear_technology_logo-removebg-preview.png" alt="Logo da empresa" class="footer-logo" />
+        <div class="footer-text">
+          <span>Mesada Gamer</span>
+          <small>Seu parceiro de educação financeira gamificada</small>
+        </div>
+      </div>
+      <div class="footer-copy">
+        © 2026 Mesada Gamer. Todos os direitos reservados.
+      </div>
+    </footer>
+
+    <!-- MODAL: Task Completion (kid side) -->
+    <div class="modal-overlay" id="modal-complete">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-complete')">
+          ✕
+        </button>
+        <div class="modal-title">🏁 CONCLUIR MISSÃO</div>
+        <div id="modal-task-info" style="margin-bottom: 16px"></div>
+        <div class="form-group">
+          <label>Observação (opcional)</label>
+          <textarea
+            id="complete-note"
+            placeholder="Ex: Lavei tudo bem lavadinho!"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label>📸 Foto como prova (URL ou simulado)</label>
+          <input
+            type="text"
+            id="complete-photo"
+            placeholder="Cole URL de foto ou deixe em branco"
+          />
+        </div>
+        <button class="btn btn-green btn-full" onclick="confirmComplete()">
+          ✅ ENVIAR PARA APROVAÇÃO
+        </button>
+      </div>
+    </div>
+
+    <!-- MODAL: Shop redeem -->
+    <div class="modal-overlay" id="modal-shop">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-shop')">
+          ✕
+        </button>
+        <div class="modal-title">🛒 RESGATAR RECOMPENSA</div>
+        <div
+          id="modal-shop-info"
+          style="text-align: center; padding: 10px 0 20px"
+        ></div>
+        <button class="btn btn-gold btn-full" onclick="confirmRedeem()">
+          💰 CONFIRMAR RESGATE
+        </button>
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast"></div>
+
+    <script src="js/app.js"></script>
+  </body>
+</html>

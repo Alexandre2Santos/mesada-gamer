@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banco da Mesada Gamer 🎮</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg2: #0f1528;
+    --card: #131a2e;
+    --card2: #1a2340;
+    --accent: #00e5ff;
+    --gold: #ffd700;
+    --green: #00ff88;
+    --red: #ff4466;
+    --purple: #b44fff;
+    --border: rgba(0,229,255,0.18);
+    --text: #e8eaf6;
+    --muted: #7b8ab8;
+    --glow: 0 0 18px rgba(0,229,255,0.35);
+    --glow-gold: 0 0 18px rgba(255,215,0,0.45);
+    --radius: 14px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Rajdhani', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* SCANLINES overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+  /* BG grid */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 18px 32px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,14,26,0.92);
+    backdrop-filter: blur(8px);
+  }
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: 1.25rem;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo span { color: var(--gold); text-shadow: var(--glow-gold); }
+  .nav-pills {
+    display: flex;
+    gap: 8px;
+  }
+  .nav-pill {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 7px 18px;
+    border-radius: 30px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .22s;
+    letter-spacing: 1px;
+  }
+  .nav-pill:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-pill.active { background: var(--accent); color: var(--bg); border-color: var(--accent); box-shadow: var(--glow); }
+
+  /* MAIN LAYOUT */
+  main {
+    position: relative;
+    z-index: 5;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 30px 20px 60px;
+  }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);0
+    padding: 22px 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  /* GRID helpers */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* STAT BOXES */
+  .stat-box {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  .stat-label { font-size: 0.75rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-value { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 900; color: var(--gold); text-shadow: var(--glow-gold); }
+  .stat-value.green { color: var(--green); text-shadow: 0 0 14px rgba(0,255,136,0.5); }
+  .stat-value.accent { color: var(--accent); text-shadow: var(--glow); }
+
+  /* FORMS */
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 5px; letter-spacing: 1px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,229,255,0.12);
+  }
+  .form-group textarea { resize: vertical; min-height: 70px; }
+
+  /* BUTTONS */
+  .btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all .22s;
+    text-transform: uppercase;
+  }
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-primary:hover { box-shadow: var(--glow); transform: translateY(-1px); }
+  .btn-gold { background: var(--gold); color: var(--bg); }
+  .btn-gold:hover { box-shadow: var(--glow-gold); transform: translateY(-1px); }
+  .btn-green { background: var(--green); color: var(--bg); }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 6px 14px; font-size: 0.65rem; }
+  .btn-full { width: 100%; display: block; text-align: center; }
+
+  /* TASK LIST */
+  .task-item {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: border-color .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .task-item::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--muted);
+    border-radius: 3px 0 0 3px;
+  }
+  .task-item.pending::before { background: var(--accent); }
+  .task-item.done::before { background: var(--green); }
+  .task-item.approved::before { background: var(--gold); }
+  .task-item.rejected::before { background: var(--red); }
+  .task-info { flex: 1; }
+  .task-name { font-weight: 700; font-size: 1rem; }
+  .task-meta { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .task-value { font-family: 'Orbitron', monospace; font-size: 0.9rem; color: var(--gold); font-weight: 700; white-space: nowrap; }
+  .task-actions { display: flex; gap: 6px; align-items: center; }
+  .badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-family: 'Orbitron', monospace;
+    padding: 3px 9px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    font-weight: 700;
+  }
+  .badge-pending { background: rgba(0,229,255,0.12); color: var(--accent); border: 1px solid rgba(0,229,255,0.3); }
+  .badge-done { background: rgba(0,255,136,0.08); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+  .badge-approved { background: rgba(255,215,0,0.1); color: var(--gold); border: 1px solid rgba(255,215,0,0.3); }
+  .badge-rejected { background: rgba(255,68,102,0.1); color: var(--red); border: 1px solid rgba(255,68,102,0.3); }
+
+  /* CHILD CARDS */
+  .child-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .22s, transform .22s;
+  }
+  .child-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .child-avatar {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem;
+    box-shadow: var(--glow);
+  }
+  .child-name { font-family: 'Orbitron', monospace; font-size: 1rem; font-weight: 700; color: var(--text); }
+  .child-balance { font-family: 'Orbitron', monospace; font-size: 1.4rem; font-weight: 900; color: var(--gold); text-shadow: var(--glow-gold); }
+  .child-tasks-count { font-size: 0.8rem; color: var(--muted); }
+
+  /* SHOP ITEMS */
+  .shop-item {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    text-align: center;
+    transition: all .22s;
+    cursor: pointer;
+  }
+  .shop-item:hover { border-color: var(--gold); box-shadow: var(--glow-gold); transform: translateY(-3px); }
+  .shop-emoji { font-size: 2.5rem; margin-bottom: 8px; }
+  .shop-item-name { font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700; margin-bottom: 6px; }
+  .shop-price { font-family: 'Orbitron', monospace; color: var(--gold); font-size: 1rem; font-weight: 900; }
+
+  /* PROGRESS BAR */
+  .progress-bar { background: var(--bg2); border-radius: 6px; height: 10px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--purple)); transition: width .5s; box-shadow: var(--glow); }
+
+  /* NOTIFICATION TOAST */
+  #toast {
+    position: fixed; bottom: 30px; right: 30px; z-index: 10000;
+    background: var(--card);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 14px 22px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    color: var(--accent);
+    box-shadow: var(--glow);
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s cubic-bezier(.34,1.56,.64,1);
+    max-width: 320px;
+    pointer-events: none;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    max-width: 500px;
+    width: 90%;
+    position: relative;
+    animation: popIn .28s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
+  .modal-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer;
+  }
+  .modal-close:hover { color: var(--red); }
+  .modal-title { font-family: 'Orbitron', monospace; font-size: 0.9rem; font-weight: 700; color: var(--accent); margin-bottom: 20px; letter-spacing: 2px; }
+
+  /* XP / LEVEL BADGE */
+  .level-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, rgba(180,79,255,0.2), rgba(0,229,255,0.12));
+    border: 1px solid rgba(180,79,255,0.4);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    color: var(--purple);
+    font-weight: 700;
+  }
+
+  /* WELCOME SCREEN */
+  .welcome-hero {
+    text-align: center;
+    padding: 60px 20px 40px;
+    position: relative;
+  }
+  .welcome-hero h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 900;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .welcome-hero h1 .accent { color: var(--accent); text-shadow: var(--glow); }
+  .welcome-hero h1 .gold { color: var(--gold); text-shadow: var(--glow-gold); }
+  .welcome-hero p { color: var(--muted); font-size: 1.1rem; margin-bottom: 32px; max-width: 500px; margin-left: auto; margin-right: auto; }
+  .welcome-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 600px; margin: 0 auto; }
+  .welcome-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    cursor: pointer;
+    transition: all .25s;
+    text-align: center;
+  }
+  .welcome-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: var(--glow); }
+  .welcome-card.gold-card:hover { border-color: var(--gold); box-shadow: var(--glow-gold); }
+  .welcome-card .wc-icon { font-size: 3rem; margin-bottom: 12px; }
+  .welcome-card .wc-title { font-family: 'Orbitron', monospace; font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
+  .welcome-card .wc-desc { font-size: 0.85rem; color: var(--muted); }
+
+  /* Child selector in kid view */
+  .kid-selector {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .kid-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 30px; padding: 8px 18px;
+    cursor: pointer; transition: all .2s;
+    font-family: 'Rajdhani', sans-serif; font-size: 1rem; font-weight: 600; color: var(--muted);
+  }
+  .kid-btn.active, .kid-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Responsive */
+  @media (max-width: 680px) {
+    .grid2, .grid3, .welcome-cards { grid-template-columns: 1fr; }
+    header { flex-direction: column; gap: 12px; }
+    .nav-pills { flex-wrap: wrap; justify-content: center; }
+    main { padding: 20px 12px 50px; }
+  }
+
+  /* Animations */
+  @keyframes fadeIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+  .view.active { animation: fadeIn .32s ease; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+  .pulse { animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎮 <span>BANCO</span>&nbsp;DA MESADA&nbsp;<span>GAMER</span></div>
+  <nav class="nav-pills">
+    <button class="nav-pill" onclick="showView('home')">🏠 Início</button>
+    <button class="nav-pill" onclick="showView('admin')">👑 Pais</button>
+    <button class="nav-pill" onclick="showView('kids')">🧒 Filhos</button>
+    <button class="nav-pill" onclick="showView('shop')">🛒 Lojinha</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- HOME / WELCOME -->
+  <div id="view-home" class="view active">
+    <div class="welcome-hero">
+      <h1>Transforme tarefas em<br><span class="gold">recompensas épicas</span> 🏆</h1>
+      <p>O banco virtual que transforma deveres de casa em missões gamificadas — e mesada real!</p>
+      <div class="welcome-cards">
+        <div class="welcome-card" onclick="showView('admin')">
+          <div class="wc-icon">👑</div>
+          <div class="wc-title">PAINEL DOS PAIS</div>
+          <div class="wc-desc">Cadastre filhos, crie missões e aprove tarefas concluídas</div>
+        </div>
+        <div class="welcome-card gold-card" onclick="showView('kids')">
+          <div class="wc-icon">🧒</div>
+          <div class="wc-title">PAINEL DOS FILHOS</div>
+          <div class="wc-desc">Veja suas missões, marque como concluída e acumule saldo</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid3" style="margin-top:14px;">
+      <div class="stat-box">
+        <div class="stat-label">Total de Missões</div>
+        <div class="stat-value accent" id="home-total-tasks">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Saldo Total Ganho</div>
+        <div class="stat-value" id="home-total-earned">R$ 0,00</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Filhos Cadastrados</div>
+        <div class="stat-value green" id="home-total-kids">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN VIEW -->
+  <div id="view-admin" class="view">
+    <div class="grid2">
+
+      <!-- Add Child -->
+      <div class="card">
+        <div class="card-title">➕ Cadastrar Filho</div>
+        <div class="form-group">
+          <label>Nome do Filho</label>
+          <input type="text" id="child-name" placeholder="Ex: João, Maria...">
+        </div>
+        <div class="form-group">
+          <label>Avatar (emoji)</label>
+          <input type="text" id="child-avatar" placeholder="🦊" maxlength="2">
+        </div>
+        <button class="btn btn-primary" onclick="addChild()">CADASTRAR FILHO</button>
+        <div id="children-list" style="margin-top:16px;"></div>
+      </div>
+
+      <!-- Add Task -->
+      <div class="card">
+        <div class="card-title">⚔️ Criar Missão</div>
+        <div class="form-group">
+          <label>Nome da Missão</label>
+          <input type="text" id="task-name" placeholder="Ex: Lavar a louça">
+        </div>
+        <div class="form-group">
+          <label>Atribuir ao Filho</label>
+          <select id="task-child"></select>
+        </div>
+        <div class="form-group">
+          <label>Valor (R$)</label>
+          <input type="number" id="task-value" placeholder="2.00" step="0.50" min="0">
+        </div>
+        <div class="form-group">
+          <label>Período</label>
+          <select id="task-period">
+            <option value="Hoje">Hoje</option>
+            <option value="Esta semana">Esta semana</option>
+            <option value="Recorrente">Recorrente (todo dia)</option>
+          </select>
+        </div>
+        <button class="btn btn-gold" onclick="addTask()">CRIAR MISSÃO</button>
+      </div>
+    </div>
+
+    <!-- Pending Approvals -->
+    <div class="card">
+      <div class="card-title">✅ Aprovações Pendentes</div>
+      <div id="pending-approvals">
+        <div style="color:var(--muted);font-size:.9rem;text-align:center;padding:20px;">Nenhuma tarefa aguardando aprovação.</div>
+      </div>
+    </div>
+
+    <!-- Bonus -->
+    <div class="card">
+      <div class="card-title">⭐ Bônus de Comportamento</div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="form-group" style="flex:1;min-width:140px;margin-bottom:0;">
+          <label>Filho</label>
+          <select id="bonus-child"></select>
+        </div>
+        <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
+          <label>Valor Bônus (R$)</label>
+          <input type="number" id="bonus-value" placeholder="5.00" min="0" step="0.5">
+        </div>
+        <div class="form-group" style="flex:2;min-width:160px;margin-bottom:0;">
+          <label>Motivo</label>
+          <input type="text" id="bonus-reason" placeholder="Ex: Semana perfeita!">
+        </div>
+        <button class="btn btn-green" onclick="addBonus()" style="height:42px;">DAR BÔNUS</button>
+      </div>
+    </div>
+
+    <!-- All tasks overview -->
+    <div class="card">
+      <div class="card-title">📋 Todas as Missões</div>
+      <div id="all-tasks-list">
+        <div style="color:var(--muted);font-size:.9rem;text-align:center;padding:20px;">Nenhuma missão criada ainda.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KIDS VIEW -->
+  <div id="view-kids" class="view">
+    <div id="no-kids-msg" style="text-align:center;padding:60px 20px;color:var(--muted);">
+      <div style="font-size:3rem;margin-bottom:12px;">👪</div>
+      <div style="font-family:'Orbitron',monospace;font-size:.85rem;">Nenhum filho cadastrado ainda.<br>Peça aos pais para cadastrar na aba <strong style="color:var(--accent)">PAIS</strong>.</div>
+    </div>
+    <div id="kids-panel" style="display:none;">
+      <div class="kid-selector" id="kid-selector"></div>
+      <div id="kid-content"></div>
+    </div>
+  </div>
+
+  <!-- SHOP VIEW -->
+  <div id="view-shop" class="view">
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-title">🏪 LOJINHA DE RECOMPENSAS</div>
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:16px;">Troque seu saldo por recompensas incríveis! Selecione seu perfil e clique em resgatar.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:.8rem;color:var(--muted);">Quem está comprando:</label>
+        <select id="shop-child-select" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:.95rem;">
+          <option value="">— Selecione —</option>
+        </select>
+        <span id="shop-balance-display" style="font-family:'Orbitron',monospace;color:var(--gold);font-size:1rem;font-weight:900;"></span>
+      </div>
+    </div>
+
+    <div class="grid3" id="shop-grid"></div>
+
+    <div class="card" style="margin-top:24px;">
+      <div class="card-title">💎 Adicionar Recompensa Personalizada</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
+          <label>Emoji</label>
+          <input type="text" id="reward-emoji" placeholder="🎮" maxlength="2">
+        </div>
+        <div class="form-group" style="flex:2;min-width:160px;margin-bottom:0;">
+          <label>Nome da Recompensa</label>
+          <input type="text" id="reward-name" placeholder="Ex: 1h extra de videogame">
+        </div>
+        <div class="form-group" style="flex:1;min-width:100px;margin-bottom:0;">
+          <label>Custo (R$)</label>
+          <input type="number" id="reward-cost" placeholder="10.00" step="0.5" min="0">
+        </div>
+        <button class="btn btn-primary" onclick="addReward()" style="height:42px;">ADICIONAR</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- MODAL: Task Completion (kid side) -->
+<div class="modal-overlay" id="modal-complete">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-complete')">✕</button>
+    <div class="modal-title">🏁 CONCLUIR MISSÃO</div>
+    <div id="modal-task-info" style="margin-bottom:16px;"></div>
+    <div class="form-group">
+      <label>Observação (opcional)</label>
+      <textarea id="complete-note" placeholder="Ex: Lavei tudo bem lavadinho!"></textarea>
+    </div>
+    <div class="form-group">
+      <label>📸 Foto como prova (URL ou simulado)</label>
+      <input type="text" id="complete-photo" placeholder="Cole URL de foto ou deixe em branco">
+    </div>
+    <button class="btn btn-green btn-full" onclick="confirmComplete()">✅ ENVIAR PARA APROVAÇÃO</button>
+  </div>
+</div>
+
+<!-- MODAL: Shop redeem -->
+<div class="modal-overlay" id="modal-shop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-shop')">✕</button>
+    <div class="modal-title">🛒 RESGATAR RECOMPENSA</div>
+    <div id="modal-shop-info" style="text-align:center;padding:10px 0 20px;"></div>
+    <button class="btn btn-gold btn-full" onclick="confirmRedeem()">💰 CONFIRMAR RESGATE</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ─── STATE ──────────────────────────────────────────────
+let state = {
+  children: [],
+  tasks: [],
+  rewards: [
+    { id: r(), emoji:'💰', name:'Resgate em Pix / Espécie', cost: 0, special: 'cash' },
+    { id: r(), emoji:'🎮', name:'1h extra de videogame', cost: 10 },
+    { id: r(), emoji:'🎬', name:'Escolher filme do fim de semana', cost: 8 },
+    { id: r(), emoji:'🌙', name:'Dormir mais tarde no sábado', cost: 12 },
+    { id: r(), emoji:'🍕', name:'Escolher o jantar', cost: 6 },
+    { id: r(), emoji:'🎠', name:'Passeio especial', cost: 30 },
+  ],
+  transactions: [],
+};
+let pendingCompleteTask = null;
+let pendingRedeemReward = null;
+
+function r() { return Math.random().toString(36).slice(2,8); }
+
+function save() { try { localStorage.setItem('mesadaGamer', JSON.stringify(state)); } catch(e){} }
+function load() {
+  try {
+    const d = localStorage.getItem('mesadaGamer');
+    if (d) state = JSON.parse(d);
+  } catch(e){}
+}
+load();
+
+// ─── NAVIGATION ──────────────────────────────────────────
+let activeView = 'home';
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-pill').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  const pills = document.querySelectorAll('.nav-pill');
+  const map = { home: 0, admin: 1, kids: 2, shop: 3 };
+  pills[map[v]].classList.add('active');
+  activeView = v;
+  renderAll();
+}
+
+// ─── RENDER ──────────────────────────────────────────────
+function renderAll() {
+  renderHome();
+  renderAdmin();
+  renderKids();
+  renderShop();
+}
+
+function fmtMoney(v) {
+  return 'R$ ' + Number(v).toFixed(2).replace('.',',');
+}
+
+function getChildBalance(childId) {
+  return state.transactions
+    .filter(t => t.childId === childId)
+    .reduce((sum, t) => sum + t.amount, 0);
+}
+
+function renderHome() {
+  const totalTasks = state.tasks.length;
+  const totalEarned = state.transactions.reduce((s,t) => s + (t.amount > 0 ? t.amount : 0), 0);
+  document.getElementById('home-total-tasks').textContent = totalTasks;
+  document.getElementById('home-total-earned').textContent = fmtMoney(totalEarned);
+  document.getElementById('home-total-kids').textContent = state.children.length;
+}
+
+function renderAdmin() {
+  // Children list
+  const cl = document.getElementById('children-list');
+  if (!state.children.length) { cl.innerHTML = ''; return; }
+  cl.innerHTML = state.children.map(c => {
+    const bal = getChildBalance(c.id);
+    return `<div class="task-item" style="margin-top:8px;">
+      <div style="font-size:1.6rem;">${c.avatar||'👤'}</div>
+      <div class="task-info"><div class="task-name">${c.name}</div></div>
+      <div class="task-value">${fmtMoney(bal)}</div>
+      <button class="btn btn-sm btn-red btn-ghost" onclick="removeChild('${c.id}')">✕</button>
+    </div>`;
+  }).join('');
+
+  // Populate selects
+  const childOpts = state.children.map(c => `<option value="${c.id}">${c.avatar||'👤'} ${c.name}</option>`).join('');
+  document.getElementById('task-child').innerHTML = childOpts || '<option value="">Nenhum filho</option>';
+  document.getElementById('bonus-child').innerHTML = childOpts || '<option value="">Nenhum filho</option>';
+
+  // Pending approvals
+  const pa = document.getElementById('pending-approvals');
+  const pending = state.tasks.filter(t => t.status === 'done');
+  if (!pending.length) {
+    pa.innerHTML = '<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:20px;">Nenhuma tarefa aguardando aprovação.</div>';
+  } else {
+    pa.innerHTML = pending.map(t => {
+      const child = state.children.find(c => c.id === t.childId);
+      return `<div class="task-item done">
+        <div style="font-size:1.4rem;">${child?.avatar||'👤'}</div>
+        <div class="task-info">
+          <div class="task-name">${t.name}</div>
+          <div class="task-meta">${child?.name||'?'} · ${t.period}${t.note ? ' · "'+t.note+'"' : ''}</div>
+          ${t.photo ? `<div style="font-size:.75rem;color:var(--accent);margin-top:3px;">📸 ${t.photo}</div>` : ''}
+        </div>
+        <div class="task-value">${fmtMoney(t.value)}</div>
+        <div class="task-actions">
+          <button class="btn btn-sm btn-green" onclick="approveTask('${t.id}')">✔ Aprovar</button>
+          <button class="btn btn-sm btn-red" onclick="rejectTask('${t.id}')">✘ Rejeitar</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // All tasks
+  const atl = document.getElementById('all-tasks-list');
+  if (!state.tasks.length) {
+    atl.innerHTML = '<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:20px;">Nenhuma missão criada ainda.</div>';
+  } else {
+    atl.innerHTML = state.tasks.map(t => {
+      const child = state.children.find(c => c.id === t.childId);
+      const badges = { pending:'<span class="badge badge-pending">⏳ Pendente</span>', done:'<span class="badge badge-done">📤 Em análise</span>', approved:'<span class="badge badge-approved">✅ Aprovada</span>', rejected:'<span class="badge badge-rejected">❌ Rejeitada</span>' };
+      return `<div class="task-item ${t.status}">
+        <div class="task-info">
+          <div class="task-name">${t.name} &nbsp;${badges[t.status]||''}</div>
+          <div class="task-meta">${child?.name||'?'} · ${t.period}</div>
+        </div>
+        <div class="task-value">${fmtMoney(t.value)}</div>
+        <button class="btn btn-sm btn-ghost" onclick="removeTask('${t.id}')">🗑</button>
+      </div>`;
+    }).join('');
+  }
+}
+
+function renderKids() {
+  const noKids = document.getElementById('no-kids-msg');
+  const kidsPanel = document.getElementById('kids-panel');
+  if (!state.children.length) {
+    noKids.style.display = 'block';
+    kidsPanel.style.display = 'none';
+    return;
+  }
+  noKids.style.display = 'none';
+  kidsPanel.style.display = 'block';
+
+  const selector = document.getElementById('kid-selector');
+  selector.innerHTML = state.children.map(c =>
+    `<div class="kid-btn ${activeKid===c.id?'active':''}" onclick="selectKid('${c.id}')">${c.avatar||'👤'} ${c.name}</div>`
+  ).join('');
+
+  if (!activeKid && state.children.length) activeKid = state.children[0].id;
+  renderKidContent();
+}
+
+let activeKid = null;
+function selectKid(id) { activeKid = id; renderKids(); }
+
+function renderKidContent() {
+  const kc = document.getElementById('kid-content');
+  if (!activeKid) { kc.innerHTML=''; return; }
+  const child = state.children.find(c => c.id === activeKid);
+  if (!child) { kc.innerHTML=''; return; }
+  const balance = getChildBalance(child.id);
+  const tasks = state.tasks.filter(t => t.childId === child.id);
+  const approved = tasks.filter(t => t.status==='approved').length;
+  const total = tasks.length;
+  const pct = total ? Math.round((approved/total)*100) : 0;
+  const level = Math.floor(balance / 20) + 1;
+  const xpNeeded = level * 20;
+  const xpCurrent = balance % 20;
+
+  kc.innerHTML = `
+    <div class="grid3" style="margin-bottom:20px;">
+      <div class="stat-box">
+        <div class="stat-label">Saldo Atual</div>
+        <div class="stat-value">${fmtMoney(balance)}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Missões Completas</div>
+        <div class="stat-value green">${approved}/${total}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Nível Gamer</div>
+        <div class="stat-value accent">LVL ${level}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+        <div class="child-avatar">${child.avatar||'👤'}</div>
+        <div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:900;">${child.name}</div>
+          <div class="level-badge">⚡ NÍVEL ${level} · ${xpCurrent.toFixed(2)} / ${xpNeeded} XP</div>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,(xpCurrent/xpNeeded)*100)}%"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚔️ Minhas Missões</div>
+      ${tasks.length ? tasks.map(t => {
+        const badges = { pending:'<span class="badge badge-pending">⏳ Pendente</span>', done:'<span class="badge badge-done">📤 Em análise</span>', approved:'<span class="badge badge-approved">✅ Aprovada</span>', rejected:'<span class="badge badge-rejected">❌ Rejeitada</span>' };
+        const canComplete = t.status === 'pending' || t.status === 'rejected';
+        return `<div class="task-item ${t.status}">
+          <div class="task-info">
+            <div class="task-name">${t.name} &nbsp;${badges[t.status]||''}</div>
+            <div class="task-meta">${t.period}</div>
+          </div>
+          <div class="task-value">${fmtMoney(t.value)}</div>
+          ${canComplete ? `<button class="btn btn-sm btn-primary" onclick="openComplete('${t.id}')">CONCLUIR</button>` : ''}
+        </div>`;
+      }).join('') : '<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:20px;">Nenhuma missão atribuída. Peça aos pais!</div>'}
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title">📜 Extrato de Transações</div>
+      ${state.transactions.filter(t=>t.childId===child.id).reverse().slice(0,10).map(t=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:.9rem;">${t.desc}</div>
+          <div style="font-family:'Orbitron',monospace;font-size:.85rem;color:${t.amount>=0?'var(--green)':'var(--red)'};">${t.amount>=0?'+':''}${fmtMoney(t.amount)}</div>
+        </div>
+      `).join('') || '<div style="color:var(--muted);font-size:.9rem;text-align:center;padding:14px;">Nenhuma transação ainda.</div>'}
+    </div>
+  `;
+}
+
+function renderShop() {
+  const sg = document.getElementById('shop-grid');
+  sg.innerHTML = state.rewards.map(rw => `
+    <div class="shop-item" onclick="openShop('${rw.id}')">
+      <div class="shop-emoji">${rw.emoji}</div>
+      <div class="shop-item-name">${rw.name}</div>
+      <div class="shop-price">${rw.special==='cash'?'SALDO TOTAL':fmtMoney(rw.cost)}</div>
+    </div>
+  `).join('');
+
+  const sc = document.getElementById('shop-child-select');
+  sc.innerHTML = '<option value="">— Selecione —</option>' +
+    state.children.map(c => `<option value="${c.id}">${c.avatar||'👤'} ${c.name}</option>`).join('');
+
+  sc.onchange = () => {
+    const cid = sc.value;
+    const disp = document.getElementById('shop-balance-display');
+    if (!cid) { disp.textContent=''; return; }
+    const bal = getChildBalance(cid);
+    disp.textContent = '💰 ' + fmtMoney(bal);
+  };
+  sc.dispatchEvent(new Event('change'));
+}
+
+// ─── ACTIONS ─────────────────────────────────────────────
+function addChild() {
+  const name = document.getElementById('child-name').value.trim();
+  const avatar = document.getElementById('child-avatar').value.trim() || '🧒';
+  if (!name) { toast('Informe o nome do filho!'); return; }
+  state.children.push({ id: r(), name, avatar });
+  document.getElementById('child-name').value = '';
+  document.getElementById('child-avatar').value = '';
+  save(); renderAll();
+  toast('✅ ' + name + ' cadastrado(a) com sucesso!');
+}
+
+function removeChild(id) {
+  if (!confirm('Remover este filho e todas as suas tarefas?')) return;
+  state.children = state.children.filter(c => c.id !== id);
+  state.tasks = state.tasks.filter(t => t.childId !== id);
+  state.transactions = state.transactions.filter(t => t.childId !== id);
+  save(); renderAll();
+}
+
+function addTask() {
+  const name = document.getElementById('task-name').value.trim();
+  const childId = document.getElementById('task-child').value;
+  const value = parseFloat(document.getElementById('task-value').value);
+  const period = document.getElementById('task-period').value;
+  if (!name) { toast('Informe o nome da missão!'); return; }
+  if (!childId) { toast('Selecione um filho!'); return; }
+  if (isNaN(value) || value < 0) { toast('Informe um valor válido!'); return; }
+  state.tasks.push({ id: r(), name, childId, value, period, status: 'pending', note:'', photo:'' });
+  document.getElementById('task-name').value = '';
+  document.getElementById('task-value').value = '';
+  save(); renderAll();
+  toast('⚔️ Missão "' + name + '" criada!');
+}
+
+function removeTask(id) {
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  save(); renderAll();
+}
+
+function approveTask(id) {
+  const task = state.tasks.find(t => t.id === id);
+  if (!task) return;
+  task.status = 'approved';
+  state.transactions.push({ id: r(), childId: task.childId, amount: task.value, desc: '✅ Missão aprovada: ' + task.name });
+  save(); renderAll();
+  toast('💰 Tarefa aprovada! +' + fmtMoney(task.value) + ' para ' + (state.children.find(c=>c.id===task.childId)?.name||'?'));
+}
+
+function rejectTask(id) {
+  const task = state.tasks.find(t => t.id === id);
+  if (!task) return;
+  task.status = 'rejected';
+  save(); renderAll();
+  toast('❌ Tarefa rejeitada.');
+}
+
+function addBonus() {
+  const childId = document.getElementById('bonus-child').value;
+  const value = parseFloat(document.getElementById('bonus-value').value);
+  const reason = document.getElementById('bonus-reason').value.trim() || 'Bônus especial';
+  if (!childId) { toast('Selecione um filho!'); return; }
+  if (isNaN(value) || value <= 0) { toast('Valor inválido!'); return; }
+  state.transactions.push({ id: r(), childId, amount: value, desc: '⭐ Bônus: ' + reason });
+  document.getElementById('bonus-value').value = '';
+  document.getElementById('bonus-reason').value = '';
+  save(); renderAll();
+  toast('⭐ Bônus de ' + fmtMoney(value) + ' adicionado!');
+}
+
+// Task completion modal
+function openComplete(taskId) {
+  pendingCompleteTask = taskId;
+  const task = state.tasks.find(t => t.id === taskId);
+  document.getElementById('modal-task-info').innerHTML = `
+    <div style="background:var(--card2);border-radius:10px;padding:14px;">
+      <div style="font-family:'Orbitron',monospace;font-size:.85rem;font-weight:700;">${task.name}</div>
+      <div style="color:var(--gold);font-family:'Orbitron',monospace;margin-top:4px;">${fmtMoney(task.value)}</div>
+    </div>`;
+  document.getElementById('complete-note').value = '';
+  document.getElementById('complete-photo').value = '';
+  openModal('modal-complete');
+}
+
+function confirmComplete() {
+  const task = state.tasks.find(t => t.id === pendingCompleteTask);
+  if (!task) return;
+  task.status = 'done';
+  task.note = document.getElementById('complete-note').value;
+  task.photo = document.getElementById('complete-photo').value;
+  save(); renderAll();
+  closeModal('modal-complete');
+  toast('📤 Enviado para aprovação dos pais!');
+}
+
+// Shop
+function openShop(rewardId) {
+  const rw = state.rewards.find(r => r.id === rewardId);
+  if (!rw) return;
+  const childId = document.getElementById('shop-child-select').value;
+  if (!childId) { toast('Selecione seu perfil primeiro!'); return; }
+  const child = state.children.find(c => c.id === childId);
+  const bal = getChildBalance(childId);
+  const cost = rw.special === 'cash' ? bal : rw.cost;
+  if (bal < cost && rw.special !== 'cash') { toast('Saldo insuficiente! 😢'); return; }
+  pendingRedeemReward = { rewardId, childId };
+  document.getElementById('modal-shop-info').innerHTML = `
+    <div style="font-size:3.5rem;margin-bottom:8px;">${rw.emoji}</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1rem;font-weight:700;margin-bottom:12px;">${rw.name}</div>
+    <div style="color:var(--muted);margin-bottom:6px;">Comprador: ${child.avatar} ${child.name}</div>
+    <div style="font-family:'Orbitron',monospace;color:var(--gold);font-size:1.1rem;">${rw.special==='cash'?'Resgatar '+fmtMoney(bal):'Custo: '+fmtMoney(cost)}</div>
+  `;
+  openModal('modal-shop');
+}
+
+function confirmRedeem() {
+  if (!pendingRedeemReward) return;
+  const { rewardId, childId } = pendingRedeemReward;
+  const rw = state.rewards.find(r => r.id === rewardId);
+  const bal = getChildBalance(childId);
+  const cost = rw.special === 'cash' ? bal : rw.cost;
+  state.transactions.push({ id: r(), childId, amount: -cost, desc: '🛒 Resgate: ' + rw.name });
+  save(); renderAll();
+  closeModal('modal-shop');
+  toast('🎉 Recompensa resgatada com sucesso!');
+}
+
+function addReward() {
+  const emoji = document.getElementById('reward-emoji').value.trim() || '🎁';
+  const name = document.getElementById('reward-name').value.trim();
+  const cost = parseFloat(document.getElementById('reward-cost').value);
+  if (!name) { toast('Informe o nome da recompensa!'); return; }
+  if (isNaN(cost) || cost < 0) { toast('Informe um custo válido!'); return; }
+  state.rewards.push({ id: r(), emoji, name, cost });
+  document.getElementById('reward-emoji').value = '';
+  document.getElementById('reward-name').value = '';
+  document.getElementById('reward-cost').value = '';
+  save(); renderAll();
+  toast('🎁 Recompensa adicionada!');
+}
+
+// MODAL helpers
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// TOAST
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// Click outside modal to close
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); });
+});
+
+// Initial render
+showView('home');
+</script>
+</body>
+</html>
