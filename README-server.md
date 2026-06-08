@@ -1,5 +1,7 @@
 # Mesada Gamer — Backend API (SQLite)
 
+Projeto criado por um estudante de Análise e Desenvolvimento de Sistemas.
+
 Este servidor fornece uma API REST simples para persistência dos dados do app (usuários, filhos, tarefas, aprovações, transações) usando SQLite.
 
 Instalação:

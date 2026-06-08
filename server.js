@@ -1,3 +1,15 @@
+/*
+  server.js
+  - API REST simples para o app Mesada Gamer
+  - Autenticação via JWT
+  - Persistência com SQLite (arquivo em db/database.sqlite)
+  - Rotas: register/login, children, tasks, task completions, approve/reject, transactions
+
+  Observação: este arquivo é um exemplo educacional. Em produção,
+  use IDs mais robustos (UUID), tratamento de erros mais completo
+  e políticas de segurança (rate limit, validação, CORS restrito, etc.).
+*/
+
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
@@ -6,11 +18,13 @@ const Database = require("better-sqlite3");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+// Caminhos e configurações
 const DB_FILE = path.join(__dirname, "db", "database.sqlite");
 const SCHEMA_FILE = path.join(__dirname, "db", "schema.sql");
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const PORT = process.env.PORT || 3000;
 
+// Função utilitária para gerar IDs simples (suficiente para exemplos locais)
 function r() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -34,13 +48,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Auth helpers
+// -----------------------------
+// Autenticação e helpers
+// -----------------------------
+// Gera um JWT para o usuário (payload contém id e username)
 function generateToken(user) {
   return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
     expiresIn: "7d",
   });
 }
 
+// Middleware para rotas protegidas.
+// Lê header `Authorization: Bearer <token>` e valida o JWT.
 function authMiddleware(req, res, next) {
   const h = req.headers.authorization;
   if (!h) return res.status(401).json({ error: "missing_token" });
@@ -48,7 +67,7 @@ function authMiddleware(req, res, next) {
   const token = parts.length === 2 ? parts[1] : parts[0];
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
+    req.user = payload; // adiciona `user` no request para uso posterior
     next();
   } catch (e) {
     return res.status(401).json({ error: "invalid_token" });
@@ -210,6 +229,34 @@ app.post("/api/tasks/:id/reject", authMiddleware, (req, res) => {
     taskId,
   );
   res.json({ ok: true });
+});
+
+// Delete task
+app.delete("/api/tasks/:id", authMiddleware, (req, res) => {
+  const id = req.params.id;
+  const task = db.prepare("SELECT ownerId FROM tasks WHERE id = ?").get(id);
+  if (!task) return res.status(404).json({ error: "not_found" });
+  if (task.ownerId !== req.user.id)
+    return res.status(403).json({ error: "forbidden" });
+  db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
+  res.json({ ok: true });
+});
+
+// Create transaction (manual bonus or admin-created)
+app.post("/api/transactions", authMiddleware, (req, res) => {
+  const { child_id, amount, description } = req.body || {};
+  if (!child_id || typeof amount === "undefined")
+    return res.status(400).json({ error: "child_amount_required" });
+  const child = db
+    .prepare("SELECT ownerId FROM children WHERE id = ?")
+    .get(child_id);
+  if (!child || child.ownerId !== req.user.id)
+    return res.status(403).json({ error: "invalid_child" });
+  const id = r();
+  db.prepare(
+    "INSERT INTO transactions (id, ownerId, child_id, amount, description) VALUES (?, ?, ?, ?, ?)",
+  ).run(id, req.user.id, child_id, amount, description || null);
+  res.json({ id });
 });
 
 // Transactions for owner

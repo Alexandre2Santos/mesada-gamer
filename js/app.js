@@ -1,4 +1,7 @@
-// ─── STATE ──────────────────────────────────────────────
+// ─── STATE (estado local do frontend)
+// `state` armazena usuários locais (quando offline), sessão atual,
+// filhos, tarefas, recompensas e transações. Atualmente o frontend
+// salva/recupera este objeto no `localStorage`.
 let state = {
   users: [],
   currentUserId: null,
@@ -75,6 +78,87 @@ async function ensureDefaultUser() {
 }
 ensureDefaultUser();
 
+// --- API client + auth token handling (integração com backend)
+const TOKEN_KEY = "mesadaToken";
+
+function setAuth(token, user) {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch (e) {}
+  state.currentUserId = user?.id || null;
+  state.currentUsername = user?.username || null;
+  save();
+}
+
+function clearAuth() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch (e) {}
+  state.currentUserId = null;
+  state.currentUsername = null;
+  save();
+}
+
+async function apiFetch(path, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = opts.headers || {};
+  if (!(opts.body instanceof FormData))
+    headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const res = await fetch("/api" + path, { ...opts, headers });
+  const text = await res.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (e) {
+    body = text;
+  }
+  if (!res.ok) throw body || { error: "request_failed" };
+  return body;
+}
+
+async function fetchAllForUser() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+  try {
+    const me = await apiFetch("/me");
+    state.currentUserId = me.user.id;
+    state.currentUsername = me.user.username;
+    const children = await apiFetch("/children");
+    const tasks = await apiFetch("/tasks");
+    const transactions = await apiFetch("/transactions");
+    state.children = children.map((c) => ({
+      id: c.id,
+      name: c.name,
+      avatar: c.avatar,
+      ownerId: c.ownerId,
+      created_at: c.created_at,
+    }));
+    state.tasks = tasks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      childId: t.child_id,
+      ownerId: t.ownerId,
+      value: Number(t.value),
+      period: t.period,
+      status: t.status,
+      note: t.note,
+      photo: t.photo,
+    }));
+    state.transactions = transactions.map((tr) => ({
+      id: tr.id,
+      childId: tr.child_id,
+      ownerId: tr.ownerId,
+      amount: Number(tr.amount),
+      desc: tr.description,
+      created_at: tr.created_at,
+    }));
+    renderAll();
+  } catch (e) {
+    console.warn("fetchAllForUser failed", e);
+  }
+}
+
 // --- Autenticação de pais (registro / login / logout / trocar senha)
 async function registerUser(username, password, autoLogin = false) {
   username = (username || "").trim();
@@ -105,35 +189,44 @@ async function registerUser(username, password, autoLogin = false) {
 async function registerUserFromModal() {
   const u = document.getElementById("login-username").value.trim();
   const p = document.getElementById("login-password").value;
-  const user = await registerUser(u, p, true);
-  if (user) closeModal("modal-login");
+  if (!u || !p) return toast("Preencha usuário e senha.");
+  try {
+    const res = await apiFetch("/register", {
+      method: "POST",
+      body: JSON.stringify({ username: u, password: p }),
+    });
+    setAuth(res.token, res.user);
+    await fetchAllForUser();
+    closeModal("modal-login");
+    toast("Conta criada e logado como " + res.user.username);
+  } catch (err) {
+    toast(err && err.error ? err.error : "Erro ao criar conta");
+  }
 }
 
 async function loginUser() {
   const u = document.getElementById("login-username").value.trim();
   const p = document.getElementById("login-password").value;
-  if (!u || !p) {
-    toast("Preencha usuário e senha.");
-    return;
+  if (!u || !p) return toast("Preencha usuário e senha.");
+  try {
+    const res = await apiFetch("/login", {
+      method: "POST",
+      body: JSON.stringify({ username: u, password: p }),
+    });
+    setAuth(res.token, res.user);
+    await fetchAllForUser();
+    closeModal("modal-login");
+    toast("Bem-vindo, " + res.user.username + "!");
+  } catch (err) {
+    toast(err && err.error ? err.error : "Erro ao autenticar");
   }
-  const hash = await hashPassword(p);
-  const user = state.users.find(
-    (x) => x.username === u && x.passwordHash === hash,
-  );
-  if (!user) {
-    toast("Usuário ou senha inválidos.");
-    return;
-  }
-  state.currentUserId = user.id;
-  save();
-  closeModal("modal-login");
-  renderAll();
-  toast("Bem-vindo, " + user.username + "!");
 }
 
 function logoutUser() {
-  state.currentUserId = null;
-  save();
+  clearAuth();
+  state.children = [];
+  state.tasks = [];
+  state.transactions = [];
   renderAll();
   toast("Você saiu da conta.");
 }
@@ -152,7 +245,9 @@ async function changePassword() {
   toast("Senha alterada com sucesso.");
 }
 
-// ─── NAVIGATION ──────────────────────────────────────────
+// ─── NAVEGAÇÃO (mostrar/ocultar views) ────────────────────
+// Funções que controlam a navegação entre as telas (home, admin,
+// kids e shop). O frontend simula múltiplas 'views' alterando classes.
 let activeView = "home";
 function showView(v) {
   if (v === "admin" && !state.currentUserId) {
@@ -173,7 +268,9 @@ function showView(v) {
   renderAll();
 }
 
-// ─── RENDER ──────────────────────────────────────────────
+// ─── RENDER (atualiza a UI) ──────────────────────────────
+// Conjunto de funções que leem o `state` e atualizam o DOM para
+// refletir filhos, tarefas, extrato e demais elementos visuais.
 function renderAll() {
   renderHome();
   renderAdmin();
@@ -186,8 +283,11 @@ function renderUserArea() {
   const el = document.getElementById("user-area");
   if (!el) return;
   if (state.currentUserId) {
-    const user = state.users.find((u) => u.id === state.currentUserId);
-    el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><div style="color:var(--accent);font-family:'Orbitron',monospace">${user?.username || ""}</div><button class="btn btn-sm btn-ghost" onclick="changePassword()">Trocar senha</button><button class="btn btn-sm btn-ghost" onclick="logoutUser()">Sair</button></div>`;
+    const username =
+      state.currentUsername ||
+      state.users.find((u) => u.id === state.currentUserId)?.username ||
+      "";
+    el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><div style="color:var(--accent);font-family:'Orbitron',monospace">${username}</div><button class="btn btn-sm btn-ghost" onclick="changePassword()">Trocar senha</button><button class="btn btn-sm btn-ghost" onclick="logoutUser()">Sair</button></div>`;
   } else {
     el.innerHTML = `<button class="btn btn-sm btn-ghost" onclick="openModal('modal-login')">Entrar / Registrar</button>`;
   }
@@ -480,7 +580,9 @@ function renderShop() {
   sc.dispatchEvent(new Event("change"));
 }
 
-// ─── ACTIONS ─────────────────────────────────────────────
+// ─── AÇÕES (manipulação de dados locais) ──────────────────
+// Funções que modificam o estado: adicionar filho, criar tarefa,
+// aprovar/rejeitar, adicionar bônus e submeter conclusão.
 function addChild() {
   const name = document.getElementById("child-name").value.trim();
   const avatar = document.getElementById("child-avatar").value.trim() || "🧒";
@@ -488,16 +590,33 @@ function addChild() {
     toast("Informe o nome do filho!");
     return;
   }
-  if (!state.currentUserId) {
-    toast("Faça login ou crie uma conta para cadastrar filhos.");
-    return;
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    if (!state.currentUserId)
+      return toast("Faça login ou crie uma conta para cadastrar filhos.");
+    state.children.push({
+      id: r(),
+      name,
+      avatar,
+      ownerId: state.currentUserId,
+    });
+    document.getElementById("child-name").value = "";
+    document.getElementById("child-avatar").value = "";
+    save();
+    renderAll();
+    return toast("✅ " + name + " cadastrado(a) com sucesso!");
   }
-  state.children.push({ id: r(), name, avatar, ownerId: state.currentUserId });
-  document.getElementById("child-name").value = "";
-  document.getElementById("child-avatar").value = "";
-  save();
-  renderAll();
-  toast("✅ " + name + " cadastrado(a) com sucesso!");
+  apiFetch("/children", {
+    method: "POST",
+    body: JSON.stringify({ name, avatar }),
+  })
+    .then(() => fetchAllForUser())
+    .then(() => {
+      document.getElementById("child-name").value = "";
+      document.getElementById("child-avatar").value = "";
+      toast("✅ " + name + " cadastrado(a) com sucesso!");
+    })
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao cadastrar filho"));
 }
 
 function removeChild(id) {
@@ -506,11 +625,18 @@ function removeChild(id) {
   if (child.ownerId !== state.currentUserId)
     return toast("Você não tem permissão para remover este filho.");
   if (!confirm("Remover este filho e todas as suas tarefas?")) return;
-  state.children = state.children.filter((c) => c.id !== id);
-  state.tasks = state.tasks.filter((t) => t.childId !== id);
-  state.transactions = state.transactions.filter((t) => t.childId !== id);
-  save();
-  renderAll();
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    state.children = state.children.filter((c) => c.id !== id);
+    state.tasks = state.tasks.filter((t) => t.childId !== id);
+    state.transactions = state.transactions.filter((t) => t.childId !== id);
+    save();
+    renderAll();
+    return;
+  }
+  apiFetch("/children/" + id, { method: "DELETE" })
+    .then(() => fetchAllForUser())
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao remover filho"));
 }
 
 function addTask() {
@@ -535,22 +661,36 @@ function addTask() {
     toast("Filho inválido ou sem permissão.");
     return;
   }
-  state.tasks.push({
-    id: r(),
-    name,
-    childId,
-    ownerId: child.ownerId,
-    value,
-    period,
-    status: "pending",
-    note: "",
-    photo: "",
-  });
-  document.getElementById("task-name").value = "";
-  document.getElementById("task-value").value = "";
-  save();
-  renderAll();
-  toast('⚔️ Missão "' + name + '" criada!');
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    state.tasks.push({
+      id: r(),
+      name,
+      childId,
+      ownerId: child.ownerId,
+      value,
+      period,
+      status: "pending",
+      note: "",
+      photo: "",
+    });
+    document.getElementById("task-name").value = "";
+    document.getElementById("task-value").value = "";
+    save();
+    renderAll();
+    return toast('⚔️ Missão "' + name + '" criada!');
+  }
+  apiFetch("/tasks", {
+    method: "POST",
+    body: JSON.stringify({ name, child_id: childId, value, period }),
+  })
+    .then(() => fetchAllForUser())
+    .then(() => {
+      document.getElementById("task-name").value = "";
+      document.getElementById("task-value").value = "";
+      toast('⚔️ Missão "' + name + '" criada!');
+    })
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao criar missão"));
 }
 
 function removeTask(id) {
@@ -558,9 +698,16 @@ function removeTask(id) {
   if (!task) return;
   if (task.ownerId && task.ownerId !== state.currentUserId)
     return toast("Você não tem permissão para remover esta missão.");
-  state.tasks = state.tasks.filter((t) => t.id !== id);
-  save();
-  renderAll();
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    state.tasks = state.tasks.filter((t) => t.id !== id);
+    save();
+    renderAll();
+    return;
+  }
+  apiFetch("/tasks/" + id, { method: "DELETE" })
+    .then(() => fetchAllForUser())
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao remover missão"));
 }
 
 function approveTask(id) {
@@ -568,22 +715,29 @@ function approveTask(id) {
   if (!task) return;
   if (task.ownerId && task.ownerId !== state.currentUserId)
     return toast("Você não pode aprovar esta tarefa.");
-  task.status = "approved";
-  state.transactions.push({
-    id: r(),
-    childId: task.childId,
-    amount: task.value,
-    desc: "✅ Missão aprovada: " + task.name,
-    ownerId: task.ownerId || state.currentUserId,
-  });
-  save();
-  renderAll();
-  toast(
-    "💰 Tarefa aprovada! +" +
-      fmtMoney(task.value) +
-      " para " +
-      (state.children.find((c) => c.id === task.childId)?.name || "?"),
-  );
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    task.status = "approved";
+    state.transactions.push({
+      id: r(),
+      childId: task.childId,
+      amount: task.value,
+      desc: "✅ Missão aprovada: " + task.name,
+      ownerId: task.ownerId || state.currentUserId,
+    });
+    save();
+    renderAll();
+    return toast(
+      "💰 Tarefa aprovada! +" +
+        fmtMoney(task.value) +
+        " para " +
+        (state.children.find((c) => c.id === task.childId)?.name || "?"),
+    );
+  }
+  apiFetch("/tasks/" + id + "/approve", { method: "POST" })
+    .then(() => fetchAllForUser())
+    .then(() => toast("💰 Tarefa aprovada! +" + fmtMoney(task.value)))
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao aprovar"));
 }
 
 function rejectTask(id) {
@@ -591,10 +745,17 @@ function rejectTask(id) {
   if (!task) return;
   if (task.ownerId && task.ownerId !== state.currentUserId)
     return toast("Você não pode rejeitar esta tarefa.");
-  task.status = "rejected";
-  save();
-  renderAll();
-  toast("❌ Tarefa rejeitada.");
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    task.status = "rejected";
+    save();
+    renderAll();
+    return toast("❌ Tarefa rejeitada.");
+  }
+  apiFetch("/tasks/" + id + "/reject", { method: "POST" })
+    .then(() => fetchAllForUser())
+    .then(() => toast("❌ Tarefa rejeitada."))
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao rejeitar"));
 }
 
 function addBonus() {
@@ -615,18 +776,36 @@ function addBonus() {
     toast("Valor inválido!");
     return;
   }
-  state.transactions.push({
-    id: r(),
-    childId,
-    ownerId: child.ownerId,
-    amount: value,
-    desc: "⭐ Bônus: " + reason,
-  });
-  document.getElementById("bonus-value").value = "";
-  document.getElementById("bonus-reason").value = "";
-  save();
-  renderAll();
-  toast("⭐ Bônus de " + fmtMoney(value) + " adicionado!");
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    state.transactions.push({
+      id: r(),
+      childId,
+      ownerId: child.ownerId,
+      amount: value,
+      desc: "⭐ Bônus: " + reason,
+    });
+    document.getElementById("bonus-value").value = "";
+    document.getElementById("bonus-reason").value = "";
+    save();
+    renderAll();
+    return toast("⭐ Bônus de " + fmtMoney(value) + " adicionado!");
+  }
+  apiFetch("/transactions", {
+    method: "POST",
+    body: JSON.stringify({
+      child_id: childId,
+      amount: value,
+      description: "⭐ Bônus: " + reason,
+    }),
+  })
+    .then(() => fetchAllForUser())
+    .then(() => {
+      document.getElementById("bonus-value").value = "";
+      document.getElementById("bonus-reason").value = "";
+      toast("⭐ Bônus de " + fmtMoney(value) + " adicionado!");
+    })
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao adicionar bônus"));
 }
 
 function openComplete(taskId) {
@@ -645,13 +824,28 @@ function openComplete(taskId) {
 function confirmComplete() {
   const task = state.tasks.find((t) => t.id === pendingCompleteTask);
   if (!task) return;
-  task.status = "done";
-  task.note = document.getElementById("complete-note").value;
-  task.photo = document.getElementById("complete-photo").value;
-  save();
-  renderAll();
-  closeModal("modal-complete");
-  toast("📤 Enviado para aprovação dos pais!");
+  const note = document.getElementById("complete-note").value;
+  const photo = document.getElementById("complete-photo").value;
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    task.status = "done";
+    task.note = note;
+    task.photo = photo;
+    save();
+    renderAll();
+    closeModal("modal-complete");
+    return toast("📤 Enviado para aprovação dos pais!");
+  }
+  apiFetch("/tasks/" + task.id + "/complete", {
+    method: "POST",
+    body: JSON.stringify({ note, photo }),
+  })
+    .then(() => fetchAllForUser())
+    .then(() => {
+      closeModal("modal-complete");
+      toast("📤 Enviado para aprovação dos pais!");
+    })
+    .catch((e) => toast(e && e.error ? e.error : "Erro ao enviar conclusão"));
 }
 
 function openShop(rewardId) {
@@ -685,16 +879,37 @@ function confirmRedeem() {
   const rw = state.rewards.find((r) => r.id === rewardId);
   const bal = getChildBalance(childId);
   const cost = rw.special === "cash" ? bal : rw.cost;
-  state.transactions.push({
-    id: r(),
-    childId,
-    amount: -cost,
-    desc: "🛒 Resgate: " + rw.name,
-  });
-  save();
-  renderAll();
-  closeModal("modal-shop");
-  toast("🎉 Recompensa resgatada com sucesso!");
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    state.transactions.push({
+      id: r(),
+      childId,
+      amount: -cost,
+      desc: "🛒 Resgate: " + rw.name,
+    });
+    save();
+    renderAll();
+    closeModal("modal-shop");
+    pendingRedeemReward = null;
+    return toast("🎉 Recompensa resgatada com sucesso!");
+  }
+  apiFetch("/transactions", {
+    method: "POST",
+    body: JSON.stringify({
+      child_id: childId,
+      amount: -cost,
+      description: "🛒 Resgate: " + rw.name,
+    }),
+  })
+    .then(() => fetchAllForUser())
+    .then(() => {
+      closeModal("modal-shop");
+      pendingRedeemReward = null;
+      toast("🎉 Recompensa resgatada com sucesso!");
+    })
+    .catch((e) =>
+      toast(e && e.error ? e.error : "Erro ao resgatar recompensa"),
+    );
 }
 
 function addReward() {
