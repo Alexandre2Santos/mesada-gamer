@@ -1,12 +1,26 @@
+/*
+  js/app.js
+  - Frontend da Mesada Gamer
+  - Mantém estado local, autenticação, renderização de views e
+    integração com o backend via API REST.
+  - Em modo offline, usa localStorage; em modo online, usa rotas /api.
+*/
+
 // ─── STATE (estado local do frontend)
-// `state` armazena usuários locais (quando offline), sessão atual,
-// filhos, tarefas, recompensas e transações. Atualmente o frontend
-// salva/recupera este objeto no `localStorage`.
+// `state` mantém os dados do aplicativo quando o backend não está
+// disponível ou em modo local. Também é usado para renderizar a UI.
 let state = {
   users: [],
   currentUserId: null,
+  currentUsername: null,
+  currentChildId: null,
+  currentChildName: null,
+  currentChildAvatar: null,
   children: [],
   tasks: [],
+  childTasks: [],
+  transactions: [],
+  childTransactions: [],
   rewards: [
     {
       id: r(),
@@ -30,11 +44,13 @@ function r() {
   return Math.random().toString(36).slice(2, 8);
 }
 
+// Salva o estado atual da aplicação no localStorage do navegador.
 function save() {
   try {
     localStorage.setItem("mesadaGamer", JSON.stringify(state));
   } catch (e) {}
 }
+// Carrega o estado salvo do localStorage, se existir.
 function load() {
   try {
     const d = localStorage.getItem("mesadaGamer");
@@ -43,7 +59,61 @@ function load() {
 }
 load();
 
+// --- SUPABASE INTEGRATION (opcional)
+// Configure SUPABASE_URL e SUPABASE_ANON_KEY para usar Supabase como banco.
+// Para criar as tabelas necessárias, veja supabase-schema.sql na raiz do projeto.
+// O SDK é carregado via CDN no index.html.
+const SUPABASE_URL = "https://ejzuwpdbigeypggodwlq.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqenV3cGRidWJnZXlwZ2dvZHdscSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzAxODYxODQyLCJleHAiOjE5MjcyNTc4NDJ9CvL5pxK-lwOgYpN7emnK0GduMIPKWtLwqP6H7ICMUh8";
+let supabase = null;
+const usingSupabase = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+// Inicializa o cliente Supabase na primeira necessidade
+function ensureSupabase() {
+  if (!usingSupabase) return false;
+  if (supabase) return true;
+  if (typeof window.supabase === "undefined") {
+    console.warn("Supabase SDK não carregado");
+    return false;
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log("✓ Supabase cliente inicializado");
+  return true;
+}
+
+async function supabaseSelect(table, conditions = {}) {
+  if (!ensureSupabase()) return [];
+  let query = supabase.from(table).select("*");
+  Object.entries(conditions).forEach(([key, value]) => {
+    query = query.eq(key, value);
+  });
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+async function supabaseInsert(table, row) {
+  if (!ensureSupabase()) return null;
+  const { data, error } = await supabase.from(table).insert([row]);
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+async function supabaseDelete(table, conditions = {}) {
+  if (!ensureSupabase()) return null;
+  let query = supabase.from(table).delete();
+  Object.entries(conditions).forEach(([key, value]) => {
+    query = query.eq(key, value);
+  });
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || null;
+}
+
 // Ensure a default parent account exists and migrate existing data
+// Gera um hash local de senha para o modo offline/localStorage.
+// Em modo backend, a API usa bcrypt no servidor.
 async function hashPassword(pwd) {
   try {
     const enc = new TextEncoder();
@@ -56,6 +126,10 @@ async function hashPassword(pwd) {
   }
 }
 
+// Garante que um usuário pai padrão esteja sempre disponível
+// para iniciar o aplicativo localmente sem backend.
+// Garante que exista um usuário pai padrão no modo local.
+// Isso permite usar o app mesmo sem backend configurado.
 async function ensureDefaultUser() {
   if (!state.users || !state.users.length) {
     const id = r();
@@ -80,7 +154,10 @@ ensureDefaultUser();
 
 // --- API client + auth token handling (integração com backend)
 const TOKEN_KEY = "mesadaToken";
+const CHILD_TOKEN_KEY = "mesadaChildToken";
 
+// Armazena token de pai e dados do usuário no localStorage
+// para manter sessão ativa entre recarregamentos de página.
 function setAuth(token, user) {
   try {
     localStorage.setItem(TOKEN_KEY, token);
@@ -90,17 +167,32 @@ function setAuth(token, user) {
   save();
 }
 
-function clearAuth() {
+// Armazena token de filho e dados do perfil da criança no localStorage.
+function setChildAuth(token, child) {
   try {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.setItem(CHILD_TOKEN_KEY, token);
   } catch (e) {}
-  state.currentUserId = null;
-  state.currentUsername = null;
+  state.currentChildId = child?.id || null;
+  state.currentChildName = child?.name || null;
+  state.currentChildAvatar = child?.avatar || null;
   save();
 }
 
-async function apiFetch(path, opts = {}) {
-  const token = localStorage.getItem(TOKEN_KEY);
+function clearChildAuth() {
+  try {
+    localStorage.removeItem(CHILD_TOKEN_KEY);
+  } catch (e) {}
+  state.currentChildId = null;
+  state.currentChildName = null;
+  state.currentChildAvatar = null;
+  state.childTasks = [];
+  state.childTransactions = [];
+  save();
+}
+
+// Cliente HTTP para rotas do filho. Envia token infantil no header.
+async function apiChildFetch(path, opts = {}) {
+  const token = localStorage.getItem(CHILD_TOKEN_KEY);
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData))
     headers["Content-Type"] = "application/json";
@@ -117,8 +209,202 @@ async function apiFetch(path, opts = {}) {
   return body;
 }
 
+// Busca informações e dados do filho autenticado ao carregar a sessão.
+async function fetchChildForSession() {
+  const token = localStorage.getItem(CHILD_TOKEN_KEY);
+  if (!token && usingSupabase && state.currentChildId) {
+    try {
+      const child = state.children.find((c) => c.id === state.currentChildId);
+      const tasks = await supabaseSelect("tasks", {
+        child_id: state.currentChildId,
+      });
+      const transactions = await supabaseSelect("transactions", {
+        child_id: state.currentChildId,
+      });
+      state.childTasks = tasks.map((t) => ({
+        id: t.id,
+        name: t.name,
+        childId: t.child_id,
+        ownerId: t.ownerId,
+        value: Number(t.value),
+        period: t.period,
+        status: t.status,
+        note: t.note,
+        photo: t.photo,
+      }));
+      state.childTransactions = transactions.map((tr) => ({
+        id: tr.id,
+        childId: tr.child_id,
+        ownerId: tr.ownerId,
+        amount: Number(tr.amount),
+        desc: tr.description,
+        created_at: tr.created_at,
+      }));
+      save();
+      renderAll();
+      return;
+    } catch (e) {
+      console.warn("Supabase fetchChildForSession failed", e);
+    }
+  }
+  if (!token) return;
+  try {
+    const child = await apiChildFetch("/child/me");
+    const tasks = await apiChildFetch("/child/tasks");
+    const transactions = await apiChildFetch("/child/transactions");
+    state.currentChildId = child.child.id;
+    state.currentChildName = child.child.name;
+    state.currentChildAvatar = child.child.avatar;
+    state.childTasks = tasks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      childId: t.child_id,
+      ownerId: t.ownerId,
+      value: Number(t.value),
+      period: t.period,
+      status: t.status,
+      note: t.note,
+      photo: t.photo,
+    }));
+    state.childTransactions = transactions.map((tr) => ({
+      id: tr.id,
+      childId: tr.child_id,
+      ownerId: tr.ownerId,
+      amount: Number(tr.amount),
+      desc: tr.description,
+      created_at: tr.created_at,
+    }));
+    save();
+    renderAll();
+  } catch (e) {
+    console.warn("fetchChildForSession failed", e);
+  }
+}
+
+// Realiza login de filho. Primeiro tenta modo local, depois backend.
+async function childLogin() {
+  const name = document.getElementById("child-login-name").value.trim();
+  const birthdate = document.getElementById("child-login-birthdate").value;
+  if (!name || !birthdate) return toast("Preencha nome e data de nascimento.");
+
+  const localChild = state.children.find((c) => c.name === name);
+  if (localChild && localChild.passwordHash) {
+    const attemptHash = await hashPassword(birthdate);
+    if (attemptHash === localChild.passwordHash) {
+      setChildAuth("local-" + localChild.id, localChild);
+      state.childTasks = state.tasks.filter((t) => t.childId === localChild.id);
+      state.childTransactions = state.transactions.filter(
+        (t) => t.childId === localChild.id,
+      );
+      save();
+      closeModal("modal-child-login");
+      toast("Bem-vindo, " + localChild.name + "!");
+      showView("kids");
+      return;
+    }
+  }
+
+  try {
+    const res = await apiFetch("/child/login", {
+      method: "POST",
+      body: JSON.stringify({ name, birthdate }),
+    });
+    setChildAuth(res.token, res.child);
+    await fetchChildForSession();
+    closeModal("modal-child-login");
+    toast("Bem-vindo, " + res.child.name + "!");
+    showView("kids");
+  } catch (err) {
+    toast(err && err.error ? err.error : "Erro ao autenticar filho");
+  }
+}
+
+// Desloga o filho removendo o token infantil e limpando o estado local.
+function childLogout() {
+  clearChildAuth();
+  toast("Você saiu da conta do filho.");
+}
+
+// Desloga o pai removendo token de administrador e restaurando sessão vazia.
+function clearAuth() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch (e) {}
+  state.currentUserId = null;
+  state.currentUsername = null;
+  save();
+}
+
+// Cliente HTTP para rotas autenticadas do pai. Adiciona token JWT no header.
+async function apiFetch(path, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = opts.headers || {};
+  if (!(opts.body instanceof FormData))
+    headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = "Bearer " + token;
+  try {
+    const res = await fetch("/api" + path, { ...opts, headers });
+    const text = await res.text();
+    let body = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch (e) {
+      body = text;
+    }
+    if (!res.ok) throw body || { error: "request_failed" };
+    return body;
+  } catch (e) {
+    throw { error: "network_error", message: e.message || "Network failure" };
+  }
+}
+
+// Busca dados do pai autenticado: perfil, filhos, tarefas e transações.
 async function fetchAllForUser() {
   const token = localStorage.getItem(TOKEN_KEY);
+  if (!token && usingSupabase && state.currentUserId) {
+    try {
+      const children = await supabaseSelect("children", {
+        ownerId: state.currentUserId,
+      });
+      const tasks = await supabaseSelect("tasks", {
+        ownerId: state.currentUserId,
+      });
+      const transactions = await supabaseSelect("transactions", {
+        ownerId: state.currentUserId,
+      });
+      state.children = children.map((c) => ({
+        id: c.id,
+        name: c.name,
+        avatar: c.avatar,
+        ownerId: c.ownerId,
+        birthdate: c.birthdate,
+        created_at: c.created_at,
+      }));
+      state.tasks = tasks.map((t) => ({
+        id: t.id,
+        name: t.name,
+        childId: t.child_id,
+        ownerId: t.ownerId,
+        value: Number(t.value),
+        period: t.period,
+        status: t.status,
+        note: t.note,
+        photo: t.photo,
+      }));
+      state.transactions = transactions.map((tr) => ({
+        id: tr.id,
+        childId: tr.child_id,
+        ownerId: tr.ownerId,
+        amount: Number(tr.amount),
+        desc: tr.description,
+        created_at: tr.created_at,
+      }));
+      renderAll();
+      return;
+    } catch (e) {
+      console.warn("Supabase fetchAllForUser failed", e);
+    }
+  }
   if (!token) return;
   try {
     const me = await apiFetch("/me");
@@ -187,37 +473,59 @@ async function registerUser(username, password, autoLogin = false) {
 }
 
 async function registerUserFromModal() {
-  const u = document.getElementById("login-username").value.trim();
-  const p = document.getElementById("login-password").value;
-  if (!u || !p) return toast("Preencha usuário e senha.");
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!username || !password) return toast("Preencha usuário e senha.");
   try {
     const res = await apiFetch("/register", {
       method: "POST",
-      body: JSON.stringify({ username: u, password: p }),
+      body: JSON.stringify({ username, password }),
     });
     setAuth(res.token, res.user);
     await fetchAllForUser();
     closeModal("modal-login");
     toast("Conta criada e logado como " + res.user.username);
   } catch (err) {
+    // Se o backend estiver offline, registre localmente no browser.
+    if (err && err.error === "network_error") {
+      const user = await registerUser(username, password, true);
+      if (user) {
+        closeModal("modal-login");
+        toast("Conta criada localmente como " + user.username);
+        return;
+      }
+    }
     toast(err && err.error ? err.error : "Erro ao criar conta");
   }
 }
 
 async function loginUser() {
-  const u = document.getElementById("login-username").value.trim();
-  const p = document.getElementById("login-password").value;
-  if (!u || !p) return toast("Preencha usuário e senha.");
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!username || !password) return toast("Preencha usuário e senha.");
   try {
     const res = await apiFetch("/login", {
       method: "POST",
-      body: JSON.stringify({ username: u, password: p }),
+      body: JSON.stringify({ username, password }),
     });
     setAuth(res.token, res.user);
     await fetchAllForUser();
     closeModal("modal-login");
     toast("Bem-vindo, " + res.user.username + "!");
   } catch (err) {
+    if (err && err.error === "network_error") {
+      const localUser = state.users.find((u) => u.username === username);
+      if (localUser) {
+        const hash = await hashPassword(password);
+        if (hash === localUser.passwordHash) {
+          setAuth("local-" + localUser.id, localUser);
+          renderAll();
+          closeModal("modal-login");
+          toast("Bem-vindo (modo offline), " + localUser.username + "!");
+          return;
+        }
+      }
+    }
     toast(err && err.error ? err.error : "Erro ao autenticar");
   }
 }
@@ -297,8 +605,8 @@ function fmtMoney(v) {
   return "R$ " + Number(v).toFixed(2).replace(".", ",");
 }
 
-function getChildBalance(childId) {
-  return state.transactions
+function getChildBalance(childId, transactions = state.transactions) {
+  return transactions
     .filter((t) => t.childId === childId)
     .reduce((sum, t) => sum + t.amount, 0);
 }
@@ -422,23 +730,36 @@ function renderAdmin() {
 function renderKids() {
   const noKids = document.getElementById("no-kids-msg");
   const kidsPanel = document.getElementById("kids-panel");
-  if (!state.children.length) {
-    noKids.style.display = "block";
-    kidsPanel.style.display = "none";
+  const loggedInAsChild = Boolean(state.currentChildId);
+
+  if (!loggedInAsChild) {
+    noKids.style.display = "none";
+    kidsPanel.style.display = "block";
+    document.getElementById("kid-selector").innerHTML = "";
+    document.getElementById("kid-content").innerHTML = `
+      <div class="card" style="text-align:center;max-width:520px;margin:0 auto;">
+        <div style="font-size:2.5rem;margin-bottom:14px;">👋</div>
+        <div style="font-family:'Orbitron',monospace;font-weight:700;font-size:1.1rem;margin-bottom:10px;">Acesso dos Filhos</div>
+        <div style="color:var(--muted);margin-bottom:16px;">Digite seu nome e sua data de nascimento para entrar.</div>
+        <div class="form-group">
+          <label>Nome do Filho</label>
+          <input type="text" id="child-login-name" placeholder="Seu nome" />
+        </div>
+        <div class="form-group">
+          <label>Data de Nascimento</label>
+          <input type="date" id="child-login-birthdate" placeholder="YYYY-MM-DD" />
+        </div>
+        <button class="btn btn-primary" onclick="childLogin()">Entrar como Filho</button>
+        <div style="margin-top:12px;color:var(--muted);font-size:.9rem;">A senha é a sua data de nascimento.</div>
+      </div>`;
     return;
   }
+
   noKids.style.display = "none";
   kidsPanel.style.display = "block";
-
+  activeKid = state.currentChildId;
   const selector = document.getElementById("kid-selector");
-  selector.innerHTML = state.children
-    .map(
-      (c) =>
-        `<div class="kid-btn ${activeKid === c.id ? "active" : ""}" onclick="selectKid('${c.id}')">${c.avatar || "👤"} ${c.name}</div>`,
-    )
-    .join("");
-
-  if (!activeKid && state.children.length) activeKid = state.children[0].id;
+  selector.innerHTML = `<div class="kid-btn active">${state.currentChildAvatar || "👤"} ${state.currentChildName}</div><button class="btn btn-sm btn-ghost" style="margin-left:12px;height:34px;" onclick="childLogout()">Sair</button>`;
   renderKidContent();
 }
 
@@ -454,13 +775,26 @@ function renderKidContent() {
     kc.innerHTML = "";
     return;
   }
-  const child = state.children.find((c) => c.id === activeKid);
+  let child = state.children.find((c) => c.id === activeKid);
+  let balanceSource = state.transactions;
+  let taskSource = state.tasks;
+  let transactionSource = state.transactions;
+  if (state.currentChildId) {
+    child = {
+      id: state.currentChildId,
+      name: state.currentChildName,
+      avatar: state.currentChildAvatar,
+    };
+    balanceSource = state.childTransactions;
+    taskSource = state.childTasks;
+    transactionSource = state.childTransactions;
+  }
   if (!child) {
     kc.innerHTML = "";
     return;
   }
-  const balance = getChildBalance(child.id);
-  const tasks = state.tasks.filter((t) => t.childId === child.id);
+  const balance = getChildBalance(child.id, balanceSource);
+  const tasks = taskSource.filter((t) => t.childId === child.id);
   const approved = tasks.filter((t) => t.status === "approved").length;
   const total = tasks.length;
   const pct = total ? Math.round((approved / total) * 100) : 0;
@@ -525,7 +859,7 @@ function renderKidContent() {
     <div class="card" style="margin-top:20px;">
       <div class="card-title">📜 Extrato de Transações</div>
       ${
-        state.transactions
+        transactionSource
           .filter((t) => t.childId === child.id)
           .reverse()
           .slice(0, 10)
@@ -583,37 +917,71 @@ function renderShop() {
 // ─── AÇÕES (manipulação de dados locais) ──────────────────
 // Funções que modificam o estado: adicionar filho, criar tarefa,
 // aprovar/rejeitar, adicionar bônus e submeter conclusão.
-function addChild() {
+async function addChild() {
   const name = document.getElementById("child-name").value.trim();
   const avatar = document.getElementById("child-avatar").value.trim() || "🧒";
+  const birthdate = document.getElementById("child-birthdate").value;
   if (!name) {
     toast("Informe o nome do filho!");
+    return;
+  }
+  if (!birthdate) {
+    toast("Informe a data de nascimento do filho!");
     return;
   }
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
     if (!state.currentUserId)
       return toast("Faça login ou crie uma conta para cadastrar filhos.");
-    state.children.push({
+    const passwordHash = await hashPassword(birthdate);
+    const child = {
       id: r(),
       name,
       avatar,
       ownerId: state.currentUserId,
-    });
+      birthdate,
+      passwordHash,
+    };
+    if (usingSupabase) {
+      try {
+        await supabaseInsert("children", {
+          id: child.id,
+          ownerId: child.ownerId,
+          name: child.name,
+          avatar: child.avatar,
+          birthdate: child.birthdate,
+          password_hash: child.passwordHash,
+          created_at: new Date().toISOString(),
+        });
+        state.children.push(child);
+        document.getElementById("child-name").value = "";
+        document.getElementById("child-avatar").value = "";
+        document.getElementById("child-birthdate").value = "";
+        renderAll();
+        return toast("✅ " + name + " cadastrado(a) com sucesso via Supabase!");
+      } catch (e) {
+        console.warn("Supabase addChild failed", e);
+        toast("Erro ao cadastrar filho no Supabase. Verifique a configuração.");
+        return;
+      }
+    }
+    state.children.push(child);
     document.getElementById("child-name").value = "";
     document.getElementById("child-avatar").value = "";
+    document.getElementById("child-birthdate").value = "";
     save();
     renderAll();
     return toast("✅ " + name + " cadastrado(a) com sucesso!");
   }
   apiFetch("/children", {
     method: "POST",
-    body: JSON.stringify({ name, avatar }),
+    body: JSON.stringify({ name, avatar, birthdate }),
   })
     .then(() => fetchAllForUser())
     .then(() => {
       document.getElementById("child-name").value = "";
       document.getElementById("child-avatar").value = "";
+      document.getElementById("child-birthdate").value = "";
       toast("✅ " + name + " cadastrado(a) com sucesso!");
     })
     .catch((e) => toast(e && e.error ? e.error : "Erro ao cadastrar filho"));
@@ -639,7 +1007,7 @@ function removeChild(id) {
     .catch((e) => toast(e && e.error ? e.error : "Erro ao remover filho"));
 }
 
-function addTask() {
+async function addTask() {
   const name = document.getElementById("task-name").value.trim();
   const childId = document.getElementById("task-child").value;
   const value = parseFloat(document.getElementById("task-value").value);
@@ -663,7 +1031,7 @@ function addTask() {
   }
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
-    state.tasks.push({
+    const task = {
       id: r(),
       name,
       childId,
@@ -673,7 +1041,33 @@ function addTask() {
       status: "pending",
       note: "",
       photo: "",
-    });
+    };
+    if (usingSupabase) {
+      try {
+        await supabaseInsert("tasks", {
+          id: task.id,
+          ownerId: task.ownerId,
+          child_id: task.childId,
+          name: task.name,
+          value: task.value,
+          period: task.period,
+          status: task.status,
+          note: task.note,
+          photo: task.photo,
+          created_at: new Date().toISOString(),
+        });
+        state.tasks.push(task);
+        document.getElementById("task-name").value = "";
+        document.getElementById("task-value").value = "";
+        renderAll();
+        return toast('⚔️ Missão "' + name + '" criada via Supabase!');
+      } catch (e) {
+        console.warn("Supabase addTask failed", e);
+        toast("Erro ao criar missão no Supabase. Verifique a configuração.");
+        return;
+      }
+    }
+    state.tasks.push(task);
     document.getElementById("task-name").value = "";
     document.getElementById("task-value").value = "";
     save();
@@ -810,7 +1204,9 @@ function addBonus() {
 
 function openComplete(taskId) {
   pendingCompleteTask = taskId;
-  const task = state.tasks.find((t) => t.id === taskId);
+  const source = state.currentChildId ? state.childTasks : state.tasks;
+  const task = source.find((t) => t.id === taskId);
+  if (!task) return;
   document.getElementById("modal-task-info").innerHTML = `
     <div style="background:var(--card2);border-radius:10px;padding:14px;">
       <div style="font-family:'Orbitron',monospace;font-size:.85rem;font-weight:700;">${task.name}</div>
@@ -822,12 +1218,14 @@ function openComplete(taskId) {
 }
 
 function confirmComplete() {
-  const task = state.tasks.find((t) => t.id === pendingCompleteTask);
+  const source = state.currentChildId ? state.childTasks : state.tasks;
+  const task = source.find((t) => t.id === pendingCompleteTask);
   if (!task) return;
   const note = document.getElementById("complete-note").value;
   const photo = document.getElementById("complete-photo").value;
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) {
+  const childToken = localStorage.getItem(CHILD_TOKEN_KEY);
+  if (!token && !childToken) {
     task.status = "done";
     task.note = note;
     task.photo = photo;
@@ -836,11 +1234,18 @@ function confirmComplete() {
     closeModal("modal-complete");
     return toast("📤 Enviado para aprovação dos pais!");
   }
-  apiFetch("/tasks/" + task.id + "/complete", {
-    method: "POST",
-    body: JSON.stringify({ note, photo }),
-  })
-    .then(() => fetchAllForUser())
+  const completeCall =
+    childToken ?
+      apiChildFetch("/child/tasks/" + task.id + "/complete", {
+        method: "POST",
+        body: JSON.stringify({ note, photo }),
+      })
+    : apiFetch("/tasks/" + task.id + "/complete", {
+        method: "POST",
+        body: JSON.stringify({ note, photo }),
+      });
+  completeCall
+    .then(() => (childToken ? fetchChildForSession() : fetchAllForUser()))
     .then(() => {
       closeModal("modal-complete");
       toast("📤 Enviado para aprovação dos pais!");

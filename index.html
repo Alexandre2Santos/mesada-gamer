@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
+    <!-- Cabeçalho principal com logo, navegação e área de usuário -->
     <header>
       <div class="logo">
         🎮 <span>BANCO</span>&nbsp;DA MESADA&nbsp;<span>GAMER</span>
@@ -26,6 +27,7 @@
 
     <main>
       <!-- HOME / WELCOME -->
+      <!-- Tela inicial com estatísticas e atalhos para painéis de pais e filhos -->
       <div id="view-home" class="view active">
         <div class="welcome-hero">
           <h1>
@@ -73,6 +75,7 @@
       </div>
 
       <!-- ADMIN VIEW -->
+      <!-- Painel dos pais para cadastrar filhos, criar tarefas e aprovar atividades -->
       <div id="view-admin" class="view">
         <div class="grid2">
           <!-- Add Child -->
@@ -93,6 +96,14 @@
                 id="child-avatar"
                 placeholder="🦊"
                 maxlength="2"
+              />
+            </div>
+            <div class="form-group">
+              <label>Data de Nascimento</label>
+              <input
+                type="date"
+                id="child-birthdate"
+                placeholder="YYYY-MM-DD"
               />
             </div>
             <button class="btn btn-primary" onclick="addChild()">
@@ -228,6 +239,7 @@
       </div>
 
       <!-- KIDS VIEW -->
+      <!-- Painel das crianças com seleção de perfil e acesso às missões -->
       <div id="view-kids" class="view">
         <div
           id="no-kids-msg"
@@ -251,6 +263,7 @@
       </div>
 
       <!-- SHOP VIEW -->
+      <!-- Lojinha de recompensas para resgatar saldo acumulado -->
       <div id="view-shop" class="view">
         <div class="card" style="margin-bottom: 24px">
           <div class="card-title">🏪 LOJINHA DE RECOMPENSAS</div>
@@ -357,6 +370,7 @@
       </div>
     </main>
 
+    <!-- Rodapé do site com marca e créditos -->
     <footer class="site-footer">
       <div class="footer-brand">
         <img
@@ -375,6 +389,8 @@
     </footer>
 
     <!-- MODAL: Login / Registro dos Pais -->
+    <!-- Modal usado para entrada e criação de conta dos pais -->
+    <!-- Usuários de pais usam nome + senha. A senha padrão local é admin. -->
     <div class="modal-overlay" id="modal-login">
       <div class="modal">
         <button class="modal-close" onclick="closeModal('modal-login')">
@@ -409,7 +425,41 @@
       </div>
     </div>
 
+    <!-- MODAL: Login do Filho -->
+    <!-- Modal de acesso infantil. O filho usa nome e data de nascimento. -->
+    <div class="modal-overlay" id="modal-child-login">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-child-login')">
+          ✕
+        </button>
+        <div class="modal-title">🧒 Acesso do Filho</div>
+        <div style="margin-bottom: 12px">
+          <div class="form-group">
+            <label>Nome do Filho</label>
+            <input type="text" id="child-login-name" placeholder="Seu nome" />
+          </div>
+          <div class="form-group">
+            <label>Data de Nascimento</label>
+            <input
+              type="date"
+              id="child-login-birthdate"
+              placeholder="YYYY-MM-DD"
+            />
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: flex-end">
+            <button class="btn btn-primary" onclick="childLogin()">
+              Entrar como Filho
+            </button>
+          </div>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--muted)">
+          A senha é a sua data de nascimento.
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL: Task Completion (kid side) -->
+    <!-- Modal que permite ao filho marcar tarefa como concluída e enviar nota/foto -->
     <div class="modal-overlay" id="modal-complete">
       <div class="modal">
         <button class="modal-close" onclick="closeModal('modal-complete')">
@@ -439,6 +489,7 @@
     </div>
 
     <!-- MODAL: Shop redeem -->
+    <!-- Modal de confirmação de resgate de recompensa na lojinha -->
     <div class="modal-overlay" id="modal-shop">
       <div class="modal">
         <button class="modal-close" onclick="closeModal('modal-shop')">
@@ -457,6 +508,9 @@
 
     <!-- TOAST -->
     <div id="toast"></div>
+
+    <!-- Supabase SDK (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
     <script src="js/app.js"></script>
   </body>

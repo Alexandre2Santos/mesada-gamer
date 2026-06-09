@@ -4,6 +4,7 @@
 PRAGMA foreign_keys = ON;
 
 -- Usuários (pais/administradores de cada conta)
+-- Contém login e senha hash dos pais que gerenciam os filhos.
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
@@ -11,21 +12,26 @@ CREATE TABLE IF NOT EXISTS users (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Filhos cadastrados pelos pais.
+-- Contém dados de perfil e nascimento para login infantil.
 CREATE TABLE IF NOT EXISTS children (
   id TEXT PRIMARY KEY,
   ownerId TEXT NOT NULL,
   name TEXT NOT NULL,
   avatar TEXT,
+  birthdate TEXT,
+  password_hash TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (ownerId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Tarefas/missões atribuídas a cada filho por um pai.
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   ownerId TEXT NOT NULL,
   child_id TEXT NOT NULL,
   name TEXT NOT NULL,
-  value DECIMAL(10,2) NOT NULL DEFAULT 0,
+  value NUMERIC NOT NULL DEFAULT 0,
   period TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   note TEXT,
@@ -37,6 +43,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (ownerId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Registro de tentativas de conclusão de tarefas.
+-- Guarda notas, fotos e status para revisão pelo pai.
 CREATE TABLE IF NOT EXISTS task_completions (
   id TEXT PRIMARY KEY,
   task_id TEXT NOT NULL,
@@ -47,18 +55,19 @@ CREATE TABLE IF NOT EXISTS task_completions (
   photo TEXT,
   submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   reviewed_at DATETIME,
-  approved_amount DECIMAL(10,2) DEFAULT 0,
+  approved_amount NUMERIC DEFAULT 0,
   review_comment TEXT,
   FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
   FOREIGN KEY (child_id) REFERENCES children(id) ON DELETE CASCADE,
   FOREIGN KEY (ownerId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Extrato financeiro das aprovações de tarefas e bônus.
 CREATE TABLE IF NOT EXISTS transactions (
   id TEXT PRIMARY KEY,
   ownerId TEXT NOT NULL,
   child_id TEXT NOT NULL,
-  amount DECIMAL(10,2) NOT NULL,
+  amount NUMERIC NOT NULL,
   description TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (child_id) REFERENCES children(id) ON DELETE CASCADE,
