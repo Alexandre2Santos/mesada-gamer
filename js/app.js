@@ -111,6 +111,92 @@ async function supabaseDelete(table, conditions = {}) {
   return data || null;
 }
 
+async function supabaseUpdate(table, conditions = {}, updates = {}) {
+  if (!ensureSupabase()) return null;
+  let query = supabase.from(table).update(updates);
+  Object.entries(conditions).forEach(([key, value]) => {
+    query = query.eq(key, value);
+  });
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || null;
+}
+
+// --- Supabase auth helpers (registro/login usando a tabela `users`)
+async function supabaseRegisterUser(username, password) {
+  if (!ensureSupabase()) throw new Error("Supabase não disponível");
+  const id = r();
+  const password_hash = await hashPassword(password);
+  const { data, error } = await supabase.from("users").insert([
+    { id, username, password_hash, created_at: new Date().toISOString() },
+  ]);
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+async function supabaseLoginUser(username, password) {
+  if (!ensureSupabase()) throw new Error("Supabase não disponível");
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", username)
+    .limit(1);
+  if (error) throw error;
+  const user = data?.[0] || null;
+  if (!user) throw { error: "invalid_credentials" };
+  const hash = await hashPassword(password);
+  if ((user.password_hash || user.passwordHash) !== hash)
+    throw { error: "invalid_credentials" };
+  return user;
+}
+
+async function populateStateFromSupabase(ownerId) {
+  if (!ensureSupabase()) return;
+  try {
+    // fetch user record
+    const { data: users } = await supabase.from("users").select("*").eq("id", ownerId).limit(1);
+    const user = users?.[0] || null;
+    state.currentUserId = ownerId;
+    state.currentUsername = user?.username || state.currentUsername;
+
+    const children = await supabaseSelect("children", { ownerId });
+    const tasks = await supabaseSelect("tasks", { ownerId });
+    const transactions = await supabaseSelect("transactions", { ownerId });
+
+    state.children = children.map((c) => ({
+      id: c.id,
+      name: c.name,
+      avatar: c.avatar,
+      ownerId: c.ownerId,
+      birthdate: c.birthdate,
+      created_at: c.created_at,
+    }));
+    state.tasks = tasks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      childId: t.child_id,
+      ownerId: t.ownerId,
+      value: Number(t.value),
+      period: t.period,
+      status: t.status,
+      note: t.note,
+      photo: t.photo,
+    }));
+    state.transactions = transactions.map((tr) => ({
+      id: tr.id,
+      childId: tr.child_id,
+      ownerId: tr.ownerId,
+      amount: Number(tr.amount),
+      desc: tr.description,
+      created_at: tr.created_at,
+    }));
+    save();
+    renderAll();
+  } catch (e) {
+    console.warn("populateStateFromSupabase failed", e);
+  }
+}
+
 // Ensure a default parent account exists and migrate existing data
 // Gera um hash local de senha para o modo offline/localStorage.
 // Em modo backend, a API usa bcrypt no servidor.
@@ -488,6 +574,19 @@ async function registerUserFromModal() {
   } catch (err) {
     // Se o backend estiver offline, registre localmente no browser.
     if (err && err.error === "network_error") {
+      if (usingSupabase) {
+        try {
+          const user = await supabaseRegisterUser(username, password);
+          // Simula token local para sessão via Supabase
+          setAuth("supabase-" + user.id, { id: user.id, username: user.username });
+          await populateStateFromSupabase(user.id);
+          closeModal("modal-login");
+          return toast("Conta criada via Supabase e logado como " + user.username);
+        } catch (e) {
+          console.warn("Supabase registerUser failed", e);
+          // fallback para modo offline local
+        }
+      }
       const user = await registerUser(username, password, true);
       if (user) {
         closeModal("modal-login");
@@ -514,6 +613,18 @@ async function loginUser() {
     toast("Bem-vindo, " + res.user.username + "!");
   } catch (err) {
     if (err && err.error === "network_error") {
+      if (usingSupabase) {
+        try {
+          const user = await supabaseLoginUser(username, password);
+          setAuth("supabase-" + user.id, { id: user.id, username: user.username });
+          await populateStateFromSupabase(user.id);
+          closeModal("modal-login");
+          return toast("Bem-vindo (Supabase), " + user.username + "!");
+        } catch (e) {
+          console.warn("Supabase login failed", e);
+          // fallback to local
+        }
+      }
       const localUser = state.users.find((u) => u.username === username);
       if (localUser) {
         const hash = await hashPassword(password);
@@ -995,6 +1106,22 @@ function removeChild(id) {
   if (!confirm("Remover este filho e todas as suas tarefas?")) return;
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
+    if (usingSupabase) {
+      supabaseDelete("children", { id })
+        .then(() => {
+          state.children = state.children.filter((c) => c.id !== id);
+          state.tasks = state.tasks.filter((t) => t.childId !== id);
+          state.transactions = state.transactions.filter((t) => t.childId !== id);
+          save();
+          renderAll();
+          toast("✅ Filho removido via Supabase");
+        })
+        .catch((e) => {
+          console.warn("Supabase removeChild failed", e);
+          toast("Erro ao remover filho no Supabase");
+        });
+      return;
+    }
     state.children = state.children.filter((c) => c.id !== id);
     state.tasks = state.tasks.filter((t) => t.childId !== id);
     state.transactions = state.transactions.filter((t) => t.childId !== id);
@@ -1094,6 +1221,20 @@ function removeTask(id) {
     return toast("Você não tem permissão para remover esta missão.");
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
+    if (usingSupabase) {
+      supabaseDelete("tasks", { id })
+        .then(() => {
+          state.tasks = state.tasks.filter((t) => t.id !== id);
+          save();
+          renderAll();
+          toast("🗑 Missão removida via Supabase");
+        })
+        .catch((e) => {
+          console.warn("Supabase removeTask failed", e);
+          toast("Erro ao remover missão no Supabase");
+        });
+      return;
+    }
     state.tasks = state.tasks.filter((t) => t.id !== id);
     save();
     renderAll();
@@ -1111,6 +1252,37 @@ function approveTask(id) {
     return toast("Você não pode aprovar esta tarefa.");
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
+    if (usingSupabase) {
+      supabaseUpdate("tasks", { id }, { status: "approved" })
+        .then(() =>
+          supabaseInsert("transactions", {
+            id: r(),
+            ownerId: task.ownerId || state.currentUserId,
+            child_id: task.childId,
+            amount: task.value,
+            description: "✅ Missão aprovada: " + task.name,
+            created_at: new Date().toISOString(),
+          }),
+        )
+        .then(() => {
+          task.status = "approved";
+          state.transactions.push({
+            id: r(),
+            childId: task.childId,
+            amount: task.value,
+            desc: "✅ Missão aprovada: " + task.name,
+            ownerId: task.ownerId || state.currentUserId,
+          });
+          save();
+          renderAll();
+          toast("💰 Tarefa aprovada e registrada no Supabase!");
+        })
+        .catch((e) => {
+          console.warn("Supabase approveTask failed", e);
+          toast("Erro ao aprovar tarefa no Supabase");
+        });
+      return;
+    }
     task.status = "approved";
     state.transactions.push({
       id: r(),
@@ -1141,6 +1313,20 @@ function rejectTask(id) {
     return toast("Você não pode rejeitar esta tarefa.");
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
+    if (usingSupabase) {
+      supabaseUpdate("tasks", { id }, { status: "rejected" })
+        .then(() => {
+          task.status = "rejected";
+          save();
+          renderAll();
+          toast("❌ Tarefa rejeitada e atualizada no Supabase");
+        })
+        .catch((e) => {
+          console.warn("Supabase rejectTask failed", e);
+          toast("Erro ao rejeitar tarefa no Supabase");
+        });
+      return;
+    }
     task.status = "rejected";
     save();
     renderAll();
@@ -1172,6 +1358,35 @@ function addBonus() {
   }
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
+    if (usingSupabase) {
+      supabaseInsert("transactions", {
+        id: r(),
+        ownerId: child.ownerId,
+        child_id: childId,
+        amount: value,
+        description: "⭐ Bônus: " + reason,
+        created_at: new Date().toISOString(),
+      })
+        .then(() => {
+          state.transactions.push({
+            id: r(),
+            childId,
+            ownerId: child.ownerId,
+            amount: value,
+            desc: "⭐ Bônus: " + reason,
+          });
+          document.getElementById("bonus-value").value = "";
+          document.getElementById("bonus-reason").value = "";
+          save();
+          renderAll();
+          toast("⭐ Bônus adicionado via Supabase!");
+        })
+        .catch((e) => {
+          console.warn("Supabase addBonus failed", e);
+          toast("Erro ao adicionar bônus no Supabase");
+        });
+      return;
+    }
     state.transactions.push({
       id: r(),
       childId,
@@ -1226,6 +1441,33 @@ function confirmComplete() {
   const token = localStorage.getItem(TOKEN_KEY);
   const childToken = localStorage.getItem(CHILD_TOKEN_KEY);
   if (!token && !childToken) {
+    if (usingSupabase) {
+      supabaseInsert("task_completions", {
+        id: r(),
+        task_id: task.id,
+        ownerId: task.ownerId || state.currentUserId,
+        child_id: task.childId,
+        status: "submitted",
+        note: note,
+        photo: photo,
+        submitted_at: new Date().toISOString(),
+      })
+        .then(() => supabaseUpdate("tasks", { id: task.id }, { status: "done" }))
+        .then(() => {
+          task.status = "done";
+          task.note = note;
+          task.photo = photo;
+          save();
+          renderAll();
+          closeModal("modal-complete");
+          toast("📤 Enviado para aprovação dos pais (Supabase)!");
+        })
+        .catch((e) => {
+          console.warn("Supabase confirmComplete failed", e);
+          toast("Erro ao enviar conclusão para Supabase");
+        });
+      return;
+    }
     task.status = "done";
     task.note = note;
     task.photo = photo;
