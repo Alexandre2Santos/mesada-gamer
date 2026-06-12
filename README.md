@@ -59,3 +59,33 @@ Se precisar, eu integro o frontend para consumir a API (trocar localStorage por 
   - Instruções básicas para rodar localmente incluídas no README.
 
   Nota: Versão inicial funcional. Próximos passos sugeridos: testes automatizados, hardening da autenticação, e deploy para ambiente de produção.
+
+## Instruções de release
+
+1. Atualize o código e confirme as mudanças:
+
+```bash
+git add .
+git commit -m "chore(release): preparar nova versão"
+```
+
+2. Crie uma nova tag semântica:
+
+```bash
+git tag -a vX.Y -m "vX.Y"
+```
+
+3. Envie o commit e a tag para o remoto:
+
+```bash
+git push origin HEAD
+git push origin vX.Y
+```
+
+4. Opcional: se quiser manter o branch `main` atualizado, faça:
+
+```bash
+git push origin main
+```
+
+5. Atualize este `README.md` e o `Changelog` com a nova versão após o release.

@@ -11,8 +11,9 @@
 No arquivo `js/app.js`, procure por:
 
 ```javascript
-const SUPABASE_URL = "https://ejzuwpdbigeypggodwlq.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+const SUPABASE_URL = "https://katesgdnmangqfpoimws.supabase.coL";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthdGVzZ2RubWFuZ3FmcG9pbXdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTA2NzQsImV4cCI6MjA5NjU4NjY3NH0.vQtzK0VsYahDvTk85J9734o_gcaxPHJW_Cw74wADcEI";
 ```
 
 Substitua pelos seus valores da aba API.

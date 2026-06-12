@@ -63,9 +63,9 @@ load();
 // Configure SUPABASE_URL e SUPABASE_ANON_KEY para usar Supabase como banco.
 // Para criar as tabelas necessárias, veja supabase-schema.sql na raiz do projeto.
 // O SDK é carregado via CDN no index.html.
-const SUPABASE_URL = "https://ejzuwpdbigeypggodwlq.supabase.co";
+const SUPABASE_URL = "https://katesgdnmangqfpoimws.supabase.co";
 const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqenV3cGRidWJnZXlwZ2dvZHdscSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzAxODYxODQyLCJleHAiOjE5MjcyNTc4NDJ9CvL5pxK-lwOgYpN7emnK0GduMIPKWtLwqP6H7ICMUh8";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthdGVzZ2RubWFuZ3FmcG9pbXdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTA2NzQsImV4cCI6MjA5NjU4NjY3NH0.vQtzK0VsYahDvTk85J9734o_gcaxPHJW_Cw74wADcEI";
 let supabase = null;
 const usingSupabase = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -127,9 +127,11 @@ async function supabaseRegisterUser(username, password) {
   if (!ensureSupabase()) throw new Error("Supabase não disponível");
   const id = r();
   const password_hash = await hashPassword(password);
-  const { data, error } = await supabase.from("users").insert([
-    { id, username, password_hash, created_at: new Date().toISOString() },
-  ]);
+  const { data, error } = await supabase
+    .from("users")
+    .insert([
+      { id, username, password_hash, created_at: new Date().toISOString() },
+    ]);
   if (error) throw error;
   return data?.[0] || null;
 }
@@ -154,7 +156,11 @@ async function populateStateFromSupabase(ownerId) {
   if (!ensureSupabase()) return;
   try {
     // fetch user record
-    const { data: users } = await supabase.from("users").select("*").eq("id", ownerId).limit(1);
+    const { data: users } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", ownerId)
+      .limit(1);
     const user = users?.[0] || null;
     state.currentUserId = ownerId;
     state.currentUsername = user?.username || state.currentUsername;
@@ -167,6 +173,8 @@ async function populateStateFromSupabase(ownerId) {
       id: c.id,
       name: c.name,
       avatar: c.avatar,
+      email: c.email,
+      cpf: c.cpf,
       ownerId: c.ownerId,
       birthdate: c.birthdate,
       created_at: c.created_at,
@@ -369,11 +377,18 @@ async function fetchChildForSession() {
 
 // Realiza login de filho. Primeiro tenta modo local, depois backend.
 async function childLogin() {
-  const name = document.getElementById("child-login-name").value.trim();
+  const email = document.getElementById("child-login-email").value.trim();
+  const cpf = document.getElementById("child-login-cpf").value.trim();
   const birthdate = document.getElementById("child-login-birthdate").value;
-  if (!name || !birthdate) return toast("Preencha nome e data de nascimento.");
+  if ((!email && !cpf) || !birthdate)
+    return toast("Preencha email ou CPF e data de nascimento.");
 
-  const localChild = state.children.find((c) => c.name === name);
+  const normalizedCpf = cpf.replace(/\D/g, "");
+  const localChild = state.children.find(
+    (c) =>
+      (email && c.email && c.email.toLowerCase() === email.toLowerCase()) ||
+      (normalizedCpf && c.cpf && c.cpf.replace(/\D/g, "") === normalizedCpf),
+  );
   if (localChild && localChild.passwordHash) {
     const attemptHash = await hashPassword(birthdate);
     if (attemptHash === localChild.passwordHash) {
@@ -391,9 +406,12 @@ async function childLogin() {
   }
 
   try {
+    const body = { birthdate };
+    if (email) body.email = email;
+    else if (normalizedCpf) body.cpf = normalizedCpf;
     const res = await apiFetch("/child/login", {
       method: "POST",
-      body: JSON.stringify({ name, birthdate }),
+      body: JSON.stringify(body),
     });
     setChildAuth(res.token, res.child);
     await fetchChildForSession();
@@ -462,6 +480,8 @@ async function fetchAllForUser() {
         id: c.id,
         name: c.name,
         avatar: c.avatar,
+        email: c.email,
+        cpf: c.cpf,
         ownerId: c.ownerId,
         birthdate: c.birthdate,
         created_at: c.created_at,
@@ -503,6 +523,8 @@ async function fetchAllForUser() {
       id: c.id,
       name: c.name,
       avatar: c.avatar,
+      email: c.email,
+      cpf: c.cpf,
       ownerId: c.ownerId,
       created_at: c.created_at,
     }));
@@ -578,10 +600,15 @@ async function registerUserFromModal() {
         try {
           const user = await supabaseRegisterUser(username, password);
           // Simula token local para sessão via Supabase
-          setAuth("supabase-" + user.id, { id: user.id, username: user.username });
+          setAuth("supabase-" + user.id, {
+            id: user.id,
+            username: user.username,
+          });
           await populateStateFromSupabase(user.id);
           closeModal("modal-login");
-          return toast("Conta criada via Supabase e logado como " + user.username);
+          return toast(
+            "Conta criada via Supabase e logado como " + user.username,
+          );
         } catch (e) {
           console.warn("Supabase registerUser failed", e);
           // fallback para modo offline local
@@ -616,7 +643,10 @@ async function loginUser() {
       if (usingSupabase) {
         try {
           const user = await supabaseLoginUser(username, password);
-          setAuth("supabase-" + user.id, { id: user.id, username: user.username });
+          setAuth("supabase-" + user.id, {
+            id: user.id,
+            username: user.username,
+          });
           await populateStateFromSupabase(user.id);
           closeModal("modal-login");
           return toast("Bem-vindo (Supabase), " + user.username + "!");
@@ -853,8 +883,12 @@ function renderKids() {
         <div style="font-family:'Orbitron',monospace;font-weight:700;font-size:1.1rem;margin-bottom:10px;">Acesso dos Filhos</div>
         <div style="color:var(--muted);margin-bottom:16px;">Digite seu nome e sua data de nascimento para entrar.</div>
         <div class="form-group">
-          <label>Nome do Filho</label>
-          <input type="text" id="child-login-name" placeholder="Seu nome" />
+          <label>Email do Filho</label>
+          <input type="email" id="child-login-email" placeholder="email@exemplo.com" />
+        </div>
+        <div class="form-group">
+          <label>CPF do Filho</label>
+          <input type="text" id="child-login-cpf" placeholder="000.000.000-00" maxlength="14" />
         </div>
         <div class="form-group">
           <label>Data de Nascimento</label>
@@ -1032,12 +1066,18 @@ async function addChild() {
   const name = document.getElementById("child-name").value.trim();
   const avatar = document.getElementById("child-avatar").value.trim() || "🧒";
   const birthdate = document.getElementById("child-birthdate").value;
+  const email = document.getElementById("child-email").value.trim();
+  const cpf = document.getElementById("child-cpf").value.trim();
   if (!name) {
     toast("Informe o nome do filho!");
     return;
   }
   if (!birthdate) {
     toast("Informe a data de nascimento do filho!");
+    return;
+  }
+  if (!email && !cpf) {
+    toast("Informe email ou CPF para o acesso do filho.");
     return;
   }
   const token = localStorage.getItem(TOKEN_KEY);
@@ -1049,6 +1089,8 @@ async function addChild() {
       id: r(),
       name,
       avatar,
+      email: document.getElementById("child-email").value.trim().toLowerCase(),
+      cpf: document.getElementById("child-cpf").value.trim().replace(/\D/g, ""),
       ownerId: state.currentUserId,
       birthdate,
       passwordHash,
@@ -1060,6 +1102,8 @@ async function addChild() {
           ownerId: child.ownerId,
           name: child.name,
           avatar: child.avatar,
+          email: child.email,
+          cpf: child.cpf,
           birthdate: child.birthdate,
           password_hash: child.passwordHash,
           created_at: new Date().toISOString(),
@@ -1067,6 +1111,8 @@ async function addChild() {
         state.children.push(child);
         document.getElementById("child-name").value = "";
         document.getElementById("child-avatar").value = "";
+        document.getElementById("child-email").value = "";
+        document.getElementById("child-cpf").value = "";
         document.getElementById("child-birthdate").value = "";
         renderAll();
         return toast("✅ " + name + " cadastrado(a) com sucesso via Supabase!");
@@ -1079,6 +1125,8 @@ async function addChild() {
     state.children.push(child);
     document.getElementById("child-name").value = "";
     document.getElementById("child-avatar").value = "";
+    document.getElementById("child-email").value = "";
+    document.getElementById("child-cpf").value = "";
     document.getElementById("child-birthdate").value = "";
     save();
     renderAll();
@@ -1086,12 +1134,20 @@ async function addChild() {
   }
   apiFetch("/children", {
     method: "POST",
-    body: JSON.stringify({ name, avatar, birthdate }),
+    body: JSON.stringify({
+      name,
+      avatar,
+      email: email.toLowerCase(),
+      cpf: cpf.replace(/\D/g, ""),
+      birthdate,
+    }),
   })
     .then(() => fetchAllForUser())
     .then(() => {
       document.getElementById("child-name").value = "";
       document.getElementById("child-avatar").value = "";
+      document.getElementById("child-email").value = "";
+      document.getElementById("child-cpf").value = "";
       document.getElementById("child-birthdate").value = "";
       toast("✅ " + name + " cadastrado(a) com sucesso!");
     })
@@ -1111,7 +1167,9 @@ function removeChild(id) {
         .then(() => {
           state.children = state.children.filter((c) => c.id !== id);
           state.tasks = state.tasks.filter((t) => t.childId !== id);
-          state.transactions = state.transactions.filter((t) => t.childId !== id);
+          state.transactions = state.transactions.filter(
+            (t) => t.childId !== id,
+          );
           save();
           renderAll();
           toast("✅ Filho removido via Supabase");
@@ -1452,7 +1510,9 @@ function confirmComplete() {
         photo: photo,
         submitted_at: new Date().toISOString(),
       })
-        .then(() => supabaseUpdate("tasks", { id: task.id }, { status: "done" }))
+        .then(() =>
+          supabaseUpdate("tasks", { id: task.id }, { status: "done" }),
+        )
         .then(() => {
           task.status = "done";
           task.note = note;

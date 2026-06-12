@@ -40,8 +40,29 @@ const schemaSql = fs.readFileSync(SCHEMA_FILE, "utf8");
 const db = new Database(DB_FILE);
 // Ativa chaves estrangeiras no SQLite para manter integridade referencial
 db.exec("PRAGMA foreign_keys = ON;");
+
+function ensureChildLoginColumns() {
+  const columns = db
+    .prepare("PRAGMA table_info(children)")
+    .all()
+    .map((col) => col.name);
+  if (!columns.includes("email")) {
+    db.exec("ALTER TABLE children ADD COLUMN email TEXT;");
+  }
+  if (!columns.includes("cpf")) {
+    db.exec("ALTER TABLE children ADD COLUMN cpf TEXT;");
+  }
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_children_email ON children(email);",
+  );
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_children_cpf ON children(cpf);",
+  );
+}
+
 try {
   db.exec(schemaSql);
+  ensureChildLoginColumns();
   console.log("DB schema initialized");
   const userCount = db.prepare("SELECT COUNT(1) AS count FROM users").get();
   if (!userCount || userCount.count === 0) {
@@ -151,16 +172,33 @@ app.post("/api/login", (req, res) => {
 });
 
 // Child login
-// Autentica o filho usando nome e data de nascimento.
+// Autentica o filho usando email, CPF ou nome + data de nascimento.
 app.post("/api/child/login", (req, res) => {
-  const { name, birthdate } = req.body || {};
-  if (!name || !birthdate)
-    return res.status(400).json({ error: "name_birthdate_required" });
-  const row = db
-    .prepare(
-      "SELECT id, name, avatar, birthdate, password_hash FROM children WHERE name = ?",
-    )
-    .get(name);
+  const { email, cpf, name, birthdate } = req.body || {};
+  if ((!email && !cpf && !name) || !birthdate)
+    return res.status(400).json({ error: "identifier_and_birthdate_required" });
+
+  let row;
+  if (email) {
+    row = db
+      .prepare(
+        "SELECT id, name, avatar, birthdate, password_hash FROM children WHERE email = ?",
+      )
+      .get(email.trim().toLowerCase());
+  } else if (cpf) {
+    row = db
+      .prepare(
+        "SELECT id, name, avatar, birthdate, password_hash FROM children WHERE cpf = ?",
+      )
+      .get(cpf.replace(/\D/g, ""));
+  } else {
+    row = db
+      .prepare(
+        "SELECT id, name, avatar, birthdate, password_hash FROM children WHERE name = ?",
+      )
+      .get(name.trim());
+  }
+
   if (!row) return res.status(401).json({ error: "invalid_credentials" });
   const validBirthdate =
     row.password_hash ?
@@ -238,21 +276,42 @@ app.post("/api/child/tasks/:id/complete", childAuthMiddleware, (req, res) => {
 app.get("/api/children", authMiddleware, (req, res) => {
   const rows = db
     .prepare(
-      "SELECT id, name, avatar, created_at FROM children WHERE ownerId = ?",
+      "SELECT id, name, avatar, email, cpf, created_at FROM children WHERE ownerId = ?",
     )
     .all(req.user.id);
   res.json(rows);
 });
 app.post("/api/children", authMiddleware, (req, res) => {
-  const { name, avatar, birthdate } = req.body || {};
+  const { name, avatar, email, cpf, birthdate } = req.body || {};
   if (!name || !birthdate)
     return res.status(400).json({ error: "name_birthdate_required" });
+  if (!email && !cpf)
+    return res.status(400).json({ error: "email_or_cpf_required" });
+
+  const normalizedEmail = email ? email.trim().toLowerCase() : null;
+  const normalizedCpf = cpf ? cpf.replace(/\D/g, "") : null;
   const id = r();
   const hash = bcrypt.hashSync(birthdate, 10);
   db.prepare(
-    "INSERT INTO children (id, ownerId, name, avatar, birthdate, password_hash) VALUES (?, ?, ?, ?, ?, ?)",
-  ).run(id, req.user.id, name, avatar || null, birthdate, hash);
-  res.json({ id, name, avatar, birthdate });
+    "INSERT INTO children (id, ownerId, name, avatar, email, cpf, birthdate, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(
+    id,
+    req.user.id,
+    name.trim(),
+    avatar || null,
+    normalizedEmail,
+    normalizedCpf,
+    birthdate,
+    hash,
+  );
+  res.json({
+    id,
+    name,
+    avatar,
+    email: normalizedEmail,
+    cpf: normalizedCpf,
+    birthdate,
+  });
 });
 app.delete("/api/children/:id", authMiddleware, (req, res) => {
   const id = req.params.id;

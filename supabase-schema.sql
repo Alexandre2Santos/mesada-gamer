@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS children (
   ownerId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   avatar TEXT,
+  email TEXT,
+  cpf TEXT,
   birthdate TEXT,
   password_hash TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())

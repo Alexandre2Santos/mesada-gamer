@@ -90,7 +90,24 @@
               />
             </div>
             <div class="form-group">
-              <label>Avatar (emoji)</label>
+              <label>Email do Filho</label>
+              <input
+                type="email"
+                id="child-email"
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            <div class="form-group">
+              <label>CPF do Filho</label>
+              <input
+                type="text"
+                id="child-cpf"
+                placeholder="000.000.000-00"
+                maxlength="14"
+              />
+            </div>
+            <div class="form-group">
+              <label>Avatar do Filho</label>
               <input
                 type="text"
                 id="child-avatar"
@@ -100,11 +117,7 @@
             </div>
             <div class="form-group">
               <label>Data de Nascimento</label>
-              <input
-                type="date"
-                id="child-birthdate"
-                placeholder="YYYY-MM-DD"
-              />
+              <input type="date" id="child-birthdate" />
             </div>
             <button class="btn btn-primary" onclick="addChild()">
               CADASTRAR FILHO
@@ -426,7 +439,7 @@
     </div>
 
     <!-- MODAL: Login do Filho -->
-    <!-- Modal de acesso infantil. O filho usa nome e data de nascimento. -->
+    <!-- Modal de acesso infantil. O filho usa email ou CPF e data de nascimento. -->
     <div class="modal-overlay" id="modal-child-login">
       <div class="modal">
         <button class="modal-close" onclick="closeModal('modal-child-login')">
@@ -435,8 +448,21 @@
         <div class="modal-title">🧒 Acesso do Filho</div>
         <div style="margin-bottom: 12px">
           <div class="form-group">
-            <label>Nome do Filho</label>
-            <input type="text" id="child-login-name" placeholder="Seu nome" />
+            <label>Email do Filho</label>
+            <input
+              type="email"
+              id="child-login-email"
+              placeholder="email@exemplo.com"
+            />
+          </div>
+          <div class="form-group">
+            <label>CPF do Filho</label>
+            <input
+              type="text"
+              id="child-login-cpf"
+              placeholder="000.000.000-00"
+              maxlength="14"
+            />
           </div>
           <div class="form-group">
             <label>Data de Nascimento</label>
