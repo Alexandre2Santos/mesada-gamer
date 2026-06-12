@@ -46,3 +46,16 @@ Observações técnicas
 - Para uso em produção, configure `JWT_SECRET` no ambiente e considere banco centralizado (Postgres/MySQL).
 
 Se precisar, eu integro o frontend para consumir a API (trocar localStorage por chamadas HTTP).
+
+## Changelog
+
+- **v1.0 — 2026-06-12**
+  Lançamento inicial — resumo das mudanças realizadas até o momento:
+  - Implementação do frontend: `index.html`, `css/styles.css`, `js/app.js`.
+  - Implementação do backend: servidor Express em `server.js` com endpoints REST.
+  - Esquema e scripts de banco de dados: `db/schema.sql` e `supabase-schema.sql`.
+  - Documentação e setup: `package.json`, `README-server.md`, `SUPABASE-SETUP.md`.
+  - Assets e recursos estáticos: pasta `img/`.
+  - Instruções básicas para rodar localmente incluídas no README.
+
+  Nota: Versão inicial funcional. Próximos passos sugeridos: testes automatizados, hardening da autenticação, e deploy para ambiente de produção.
